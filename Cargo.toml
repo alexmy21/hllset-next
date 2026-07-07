@@ -1,0 +1,66 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+authors = ["HLLSet Algebra Project"]
+license = "MIT"
+
+[workspace.dependencies]
+# ── hllset crates ──
+hllset-core = { path = "crates/hllset-core" }
+hllset-storage = { path = "crates/hllset-storage" }
+hllset-dsl = { path = "crates/hllset-dsl" }
+hllset-forth = { path = "crates/hllset-forth" }
+hllset-materialize = { path = "crates/hllset-materialize" }
+hllset-duckdb = { path = "crates/hllset-duckdb" }
+hllset-cli = { path = "crates/hllset-cli" }
+hllset-mesh = { path = "crates/hllset-mesh" }
+
+# ── HLLSet core deps (unchanged from original) ──
+murmur3 = "0.5"
+sha1 = "0.10"
+hex = "0.4"
+roaring = { version = "0.10", features = ["serde"] }
+
+# ── Lua embedding ──
+mlua = { version = "0.10", features = ["lua54", "vendored"] }
+
+# ── Serialization ──
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# ── Error handling ──
+thiserror = "2"
+log = "0.4"
+
+# ── Database ──
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# ── Storage (ipfrs-native, replaces ureq→Go IPFS HTTP) ──
+sled = "0.34"
+bytes = "1.11"
+
+# ── Content-addressing (ipfrs-core types) ──
+# Pinned to local checkout for POC; will use crates.io once ipfrs 0.3.0 stabilises
+ipfrs-core = { path = "/home/alexmy/SGS/SGS_lib/fractal_manifold/ipfrs/crates/ipfrs-core" }
+
+# ── Async runtime (for mesh + async storage backends) ──
+tokio = { version = "1.52", features = ["full"] }
+async-trait = "0.1"
+
+# ── Observability ──
+tracing = "0.1"
+
+# ── CLI ──
+clap = { version = "4.6", features = ["derive"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[profile.dev]
+opt-level = 1

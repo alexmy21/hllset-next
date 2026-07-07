@@ -1,0 +1,14 @@
+[package]
+name = "hllset-forth"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Forth DSL frontend for HLLSet algebra — parses Forth source to AST, lowers to Lua/Rust/Verilog backends"
+
+[dependencies]
+hllset-core = { workspace = true }
+
+[dev-dependencies]
+hllset-dsl = { workspace = true }
+hllset-storage = { workspace = true }
