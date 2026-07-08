@@ -70,6 +70,41 @@ cargo test
 # 189 tests, 0 failures
 ```
 
+## Notebooks
+
+All 8 notebooks from the original project have been copied, path-adjusted,
+and verified against `hllset-next`. Every notebook executes with **0 errors**.
+
+| # | Notebook | Language | Description |
+| --- | ---------- | ---------- | ------------- |
+| 01 | `hllset_core` | Rust (evcxr) | HLLSet basics, BSS morphisms, lattice operations |
+| 02 | `tokenizer_materialization` | Rust (evcxr) | Tokenizer pipeline, LUT construction, materialization |
+| 03 | `client_demo` | Python | External client: ingestion, comparison, IPFS store/load |
+| 04 | `algebraic_chunk_space` | Rust (evcxr) | IICA: chunked LUT, closure, BSS vector, Merkle tree |
+| 05 | `iica_forth` | Python | Forth DSL: immutable, idempotent, content-addressed workflow |
+| 06 | `fpga_self_reprogram` | Python | FPGA self-reprogramming, DRN evolution, temporal layers |
+| 07 | `secure_exchange` | Python | Secure HLLSet exchange protocol with LUT-based understanding |
+| 08 | `holographic_memory` | Python | Holographic lattice memory, TF time lens, reconstruction |
+
+Python notebooks shell out to the `hllset` CLI binary via subprocess — same
+interface, same JSON output. Rust notebooks use the evcxr Jupyter kernel with
+`:dep` directives pointing at the `hllset-next` crates. The zero-error result
+confirms that infrastructure changes (storage, messaging) are isolated behind
+trait boundaries and do not affect the core algebra or CLI interface.
+
+```bash
+# Build the binary (required for Python notebooks)
+cargo build --release
+
+# Run a single notebook
+jupyter nbconvert --execute --to notebook _DOCS/notebooks/03_client_demo.ipynb
+
+# Run all notebooks
+for nb in _DOCS/notebooks/*.ipynb; do
+    jupyter nbconvert --execute --to notebook "$nb"
+done
+```
+
 ## Key Changes from Original
 
 | Aspect | Original (hllset_dsl) | New (hllset-next) |
