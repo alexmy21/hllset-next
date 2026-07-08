@@ -18,6 +18,7 @@ hllset-materialize = { path = "crates/hllset-materialize" }
 hllset-duckdb = { path = "crates/hllset-duckdb" }
 hllset-cli = { path = "crates/hllset-cli" }
 hllset-mesh = { path = "crates/hllset-mesh" }
+hllset-ranks = { path = "crates/hllset-ranks" }
 
 # ── HLLSet core deps (unchanged from original) ──
 murmur3 = "0.5"

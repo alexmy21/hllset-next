@@ -1290,6 +1290,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hllset-ranks"
+version = "0.2.0"
+dependencies = [
+ "hllset-core",
+ "hllset-dsl",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "hllset-storage"
 version = "0.2.0"
 dependencies = [
