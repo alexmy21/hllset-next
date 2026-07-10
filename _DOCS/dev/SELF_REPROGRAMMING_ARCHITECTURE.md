@@ -1338,39 +1338,49 @@ For HLLSet $H(t)$ at time $t$, the rank vector $\\mathbf{R}(t)$ has components
 $R_b(t)$ for each bit position $b = (r, tz)$. The first discrete derivative
 (element-wise difference) is the **rank velocity**:
 
-$$\\Delta\\mathbf{R}(t) = \\mathbf{R}(t) - \\mathbf{R}(t-1)$$
+```math
+\Delta\mathbf{R}(t) = \mathbf{R}(t) - \mathbf{R}(t-1)
+```
 
 This decomposes naturally via the D/R/N split. Each bit position $b$ falls into
 exactly one of three categories at time $t$:
 
 | Category | Condition | Rank contribution to ΔR |
 |----------|-----------|------------------------|
-| Retained $R$ | $b \\in H(t) \\cap H(t-1)$ | $R_b(t) - R_b(t-1)$ — change in rank of a persistent bit |
-| New $N(t)$ | $b \\in H(t) \\setminus H(t-1)$ | $+R_b(t)$ — newly added rank |
-| Departed $D(t-1)$ | $b \\in H(t-1) \\setminus H(t)$ | $-R_b(t-1)$ — lost rank |
+| Retained $R$ | $b \in H(t) \cap H(t-1)$ | $R_b(t) - R_b(t-1)$ — change in rank of a persistent bit |
+| New $N(t)$ | $b \in H(t) \setminus H(t-1)$ | $+R_b(t)$ — newly added rank |
+| Departed $D(t-1)$ | $b \in H(t-1) \setminus H(t)$ | $-R_b(t-1)$ — lost rank |
 
 The total rank flux decomposes as:
 
-$$\\sum_b \\Delta R_b(t) = \\underbrace{\\sum_{b \\in R}(R_b(t) - R_b(t-1))}_{\\text{rank drift}}
-+ \\underbrace{\\sum_{b \\in N(t)} R_b(t)}_{\\text{rank influx}}
-- \\underbrace{\\sum_{b \\in D(t-1)} R_b(t-1)}_{\\text{rank outflux}}$$
+```math
+\sum_b \Delta R_b(t) = \underbrace{\sum_{b \in R}(R_b(t) - R_b(t-1))}_{\text{rank drift}}
++ \underbrace{\sum_{b \in N(t)} R_b(t)}_{\text{rank influx}}
+- \underbrace{\sum_{b \in D(t-1)} R_b(t-1)}_{\text{rank outflux}}
+```
 
 The second discrete derivative is the **rank acceleration**:
 
-$$\\Delta^2\\mathbf{R}(t) = \\Delta\\mathbf{R}(t) - \\Delta\\mathbf{R}(t-1)
-= \\mathbf{R}(t) - 2\\mathbf{R}(t-1) + \\mathbf{R}(t-2)$$
+```math
+\Delta^2\mathbf{R}(t) = \Delta\mathbf{R}(t) - \Delta\mathbf{R}(t-1)
+= \mathbf{R}(t) - 2\mathbf{R}(t-1) + \mathbf{R}(t-2)
+```
 
 Equivalently, this is the element-wise difference between successive first-order
 Jacobians (Section 17, Higher-Order Dynamics):
 
-$$J^{(2)}_{ij} = \\frac{\\partial J^{(1)}_{ij}}{\\partial t}
-= \\text{bitmask}^{(t)}_i(j) - \\text{bitmask}^{(t-1)}_i(j)$$
+```math
+J^{(2)}_{ij} = \frac{\partial J^{(1)}_{ij}}{\partial t}
+= \text{bitmask}^{(t)}_i(j) - \text{bitmask}^{(t-1)}_i(j)
+```
 
 #### Noether Steering Reinterpreted
 
 The Noether steering equation is a conservation law on bit **count**:
 
-$$|\\text{card}(N(t)) - \\text{card}(D(t-1))| \\to 0$$
+```math
+|\text{card}(N(t)) - \text{card}(D(t-1))| \to 0
+```
 
 When this quantity approaches zero, the number of bits entering equals the
 number departing — the system is in structural equilibrium.
@@ -1378,9 +1388,11 @@ number departing — the system is in structural equilibrium.
 We can reinterpret this in rank terms. The **rank-weighted steering** equation
 replaces bit counts with rank sums:
 
-$$\\left|\\sum_{b \\in N(t)} R_b(t) - \\sum_{b \\in D(t-1)} R_b(t-1)\\right| \\to 0$$
+```math
+\left|\sum_{b \in N(t)} R_b(t) - \sum_{b \in D(t-1)} R_b(t-1)\right| \to 0
+```
 
-This is a stronger condition. Structural equilibrium ($|N| \\approx |D|$) does
+This is a stronger condition. Structural equilibrium ($|N| \approx |D|$) does
 not guarantee rank equilibrium. The system could be exchanging low-rank bits
 for high-rank bits at equal count — structurally stable but semantically
 drifting. The rank-weighted form catches this: if departing bits carry more
@@ -1388,13 +1400,13 @@ cumulative rank than arriving bits, the system is losing signal strength even
 while maintaining bit count parity.
 
 **System acceleration as Noether's control signal.** The second derivative
-$\\Delta^2\\mathbf{R}(t)$ measures how fast the rank flux itself is changing:
+$\Delta^2\mathbf{R}(t)$ measures how fast the rank flux itself is changing:
 
-- $\\Delta^2\\mathbf{R} \\approx 0$: constant flux — steady inflow/outflow, no steering needed
-- $\\Delta^2\\mathbf{R} > 0$: flux accelerating (more rank entering, or less leaving) — expansion
-- $\\Delta^2\\mathbf{R} < 0$: flux decelerating (less rank entering, or more leaving) — contraction
+- $\Delta^2\mathbf{R} \approx 0$: constant flux — steady inflow/outflow, no steering needed
+- $\Delta^2\mathbf{R} > 0$: flux accelerating (more rank entering, or less leaving) — expansion
+- $\Delta^2\mathbf{R} < 0$: flux decelerating (less rank entering, or more leaving) — contraction
 
-The Noether controller monitors $\\Delta^2\\mathbf{R}$ to decide whether to
+The Noether controller monitors $\Delta^2\mathbf{R}$ to decide whether to
 intervene. A system with positive acceleration is absorbing novelty; a system
 with negative acceleration is shedding stale structure. Neither is inherently
 wrong — but persistent acceleration in either direction signals that the
@@ -1404,15 +1416,17 @@ gate threshold, or triggering reproduction.
 
 #### Fisher-Like Matrix Across Temporal Layers
 
-With multiple HLLSet presentations across temporal layers $L_0, L_1, \\ldots,
-L_6$, each layer $L_i$ has its own rank vector $\\mathbf{R}^{(i)}$ and bitmask
-$\\mathbf{B}^{(i)}$ where $B^{(i)}_b \\in \\{0, 1\\}$.
+With multiple HLLSet presentations across temporal layers $L_0, L_1, \ldots,
+L_6$, each layer $L_i$ has its own rank vector $\mathbf{R}^{(i)}$ and bitmask
+$\mathbf{B}^{(i)}$ where $B^{(i)}_b \in \{0, 1\}$.
 
 The **cross-layer co-occurrence matrix** $\\mathbf{F}$ (Fisher-like) captures
 how bit positions co-activate across temporal scales:
 
-$$F_{bb'} = \\sum_{i=0}^{6} B^{(i)}_b \\cdot B^{(i)}_{b'} +
-\\sum_{t \\in \\text{history}} B^{(t)}_b \\cdot B^{(t)}_{b'}$$
+```math
+F_{bb'} = \sum_{i=0}^{6} B^{(i)}_b \cdot B^{(i)}_{b'} +
+\sum_{t \in \text{history}} B^{(t)}_b \cdot B^{(t)}_{b'}
+```
 
 Since bitmasks are binary, $F_{bb'}$ simply counts how many layers (and
 historical snapshots) have both bits $b$ and $b'$ set simultaneously.
@@ -1428,7 +1442,9 @@ historical snapshots) have both bits $b$ and $b'$ set simultaneously.
 | Cluster of high $F_{bb'}$ | A functional module — bits that track each other across layers |
 
 **Relation to classical Fisher information.** In statistics, the Fisher matrix
-$\\mathcal{I}(\\theta)_{ij} = \\mathbb{E}[(\\partial_\\theta \\log p)(\\partial_\\theta \\log p)]$
+
+$\mathcal{I}(\theta)_{ij} = \mathbb{E}[(\partial_\theta \log p)(\partial_\theta \log p)]$
+
 measures the sensitivity of observations to parameter changes. Here, the
 "parameter" is the TF vector (which bits are active in the environment), the
 "observation" is the layer bitmask (which bits are active in each temporal
@@ -1437,16 +1453,16 @@ $F_{bb'}$ is the empirical Fisher information — it measures how much the
 temporal structure reveals about which bits are functionally coupled.
 
 **Noether steering with Fisher guidance.** When the controller detects
-divergence ($|\\text{card}(N) - \\text{card}(D)| > \\text{threshold}$), it
-consults $\\mathbf{F}$ to identify **which bits are driving the divergence**:
+divergence ($|\text{card}(N) - \text{card}(D)| > \text{threshold}$), it
+consults $\mathbf{F}$ to identify **which bits are driving the divergence**:
 
-1. Compute the divergence vector $\\mathbf{d} = \\text{bitmask}(N) - \\text{bitmask}(D)$
+1. Compute the divergence vector $\mathbf{d} = \text{bitmask}(N) - \text{bitmask}(D)$
    — element-wise: +1 for newly set bits, -1 for departed bits, 0 for stable
-2. Project through $\\mathbf{F}$: $\\mathbf{s} = \\mathbf{F} \\cdot \\mathbf{d}$
+2. Project through $\mathbf{F}$: $\mathbf{s} = \mathbf{F} \cdot \mathbf{d}$
 3. $s_b$ measures the **systemic impact** of bit $b$'s change: a high $s_b$
    means bit $b$ is strongly coupled (via co-occurrence) to many other bits
    that also changed — it's not an isolated fluctuation, it's a systemic shift
-4. The controller focuses steering on bits with $|s_b| > \\text{threshold}$ —
+4. The controller focuses steering on bits with $|s_b| > \text{threshold}$ —
    these are the structurally significant changes, not the noise
 
 Without the Fisher matrix, the controller treats every bit's entry/exit as
@@ -1601,8 +1617,10 @@ The ordered sequence of TF vectors $[\text{TF}_0, \text{TF}_1, \ldots,
 applying a specific TF from this stack to the current lattice top, we
 recover an approximation of the lattice state at that past moment:
 
-$$\text{past\_state}(t) \approx H_{\text{system}}(\text{now}) \odot
-\text{TF}_{\text{stack}}[t]$$
+```math
+\text{past\_state}(t) \approx H_{\text{system}}(\text{now}) \odot
+\text{TF}_{\text{stack}}[t]
+```
 
 Where $\odot$ means: project each HLLSet in the current lattice through the
 TF vector at time $t$ to derive its approximate rank at time $t$. This is
@@ -1641,7 +1659,7 @@ the right lens.
 
 ## 18. Acknowledgment
 
-This architecture emerged through dialogue between Alex Mylnikov and DeepSeek
+This architecture emerged through dialogue between Alex Mylnikov, Deependra Kumar and DeepSeek
 Code on June 27, 2026. The core ideas — HLLSet algebra, IICA principles, FPGA
 mapping — existed before the session. But the specific discoveries (rank-based
 learning, temporal lattice layers, fire-and-forget communication, system
