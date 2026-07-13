@@ -3,6 +3,16 @@
 **Unified Rust platform for HLLSet Algebra.** Experimental POC replacing
 Go IPFS daemon and ROS 2 Python with ipfrs-core and a Rust-native mesh bus.
 
+**Developer tip.** HLLSet Algebra is pattern matching in a bitmask lattice.
+The notation is precise, but the concepts are familiar:
+`tokenize` = compile text into a bitmask; `union` = OR; `intersection` = AND;
+`bss_inclusion` = confidence that pattern B matches within pattern A;
+`materialize` = which known tokens match these bits?;
+`Noether steering` = pattern drift detector;
+`Fisher matrix` = temporal co-occurrence of sub-patterns;
+`O(θ)` = which patterns exceed a relevance threshold. Same code, same FPGA,
+just different names for the same operations.
+
 ## Why This Exists
 
 The original [`hllset_dsl`](../hllset_dsl/) project is a production-targeted

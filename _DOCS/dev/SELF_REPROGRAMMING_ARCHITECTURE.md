@@ -1657,6 +1657,119 @@ the right lens.
 
 ---
 
+## 19. Self-Ingestion — The Codebase as Lattice Input
+
+The architecture monitors external data streams via the tokenizer pipeline.
+But the system's own source code is also a data stream — it evolves through
+edits, refactors, and feature additions. **The codebase itself can be ingested
+into the HLLSet lattice**, making the project's development history observable
+through the same rank, derivative, and Fisher machinery that monitors external
+data.
+
+### Design
+
+**Trigger: git commit.** Rather than ingesting on every keystroke (too noisy)
+or every file save (too frequent), ingestion fires on `git commit`. Each
+committed file is treated as a token stream: the file's content is tokenized
+into an HLLSet, content-addressed, and stored. The commit becomes a lattice
+event with its own D/R/N decomposition — which files were added (N), modified
+(retained with drift), or deleted (D).
+
+**Idempotency.** Ingestion is idempotent by design — re-running the ingest
+script on the same files produces the same HLLSet fingerprints. This means
+the init ingestion (backfilling the existing codebase) and incremental
+ingestion (new commits) use the same pipeline with no special cases.
+
+**Per-file granularity.** Each source file becomes one HLLSet. This enables:
+
+| Query | Mechanism |
+|-------|-----------|
+| Which files changed most this sprint? | Rank velocity Δ²R over commit history |
+| Which files tend to be edited together? | Fisher matrix: F(file_a, file_b) across commits |
+| Is the codebase in a refactoring or stable phase? | Noether steering: |N| vs |D| across commits |
+| Which modules are "hot" right now? | Observable mask O(θ) over file ranks |
+| How similar is this commit to the last release? | BSS between current and tagged commit HLLSets |
+
+**The commit chain becomes a navigable DAG.** Each commit HLLSet links to its
+parent via the R-link (intersection of file sets between commits). The D/R/N
+decomposition at commit granularity tracks which files entered, which were
+modified, and which were removed. The temporal pyramid maps naturally: commits
+within an hour aggregate into L2, within a day into L3, across a sprint into L4.
+
+### Implementation Sketch
+
+```text
+Git hook: post-commit → ingest script → hllset CLI → lattice storage
+
+For each file in the commit:
+  1. Tokenize file content → HLLSet (content-addressed by SHA1)
+  2. Store HLLSet in ipfrs-native storage (key: h:<sha1>)
+  3. Record commit metadata: {ts, files: [cid, ...], parent: cid}
+  4. Update TF vector (bit-level TF for the file's token positions)
+
+Init ingestion (once, for existing codebase):
+  for each source file in the repository:
+    tokenize → HLLSet → store
+  build initial commit HLLSet = union of all file HLLSets
+```
+
+### Terminal Interface: Textual
+
+[Textual](https://textual.textualize.io/) is a Python framework for building
+rich terminal user interfaces with reactive widgets, CSS-based styling, and
+async event handling. It is the natural choice for the commit-ingest workflow
+and lattice monitoring dashboard.
+
+**Why Textual fits this project:**
+
+| Requirement | Textual capability |
+|-------------|-------------------|
+| Diff-like view of what's being ingested | `RichLog` + `Tree` widgets for file lists with syntax-highlighted diffs |
+| Real-time rank/Fisher display | Reactive `DataTable` bound to lattice state queries |
+| Interactive threshold adjustment | `Slider` widgets for θ, bit/rank thresholds |
+| Multi-panel dashboard | `Grid` layout: files panel, rank panel, Noether panel, commit history |
+| Keyboard-driven workflow | Built-in keybindings, custom `Binding` for commit/abort |
+| Async I/O | `textual run` is async-first — lattice queries don't block the UI |
+
+**Proposed workflow for `hllset commit`:**
+
+```text
+┌─ Commit Ingest ───────────────────────────────────────────┐
+│  ┌─ Staged Files ────────┐  ┌─ HLLSet Preview ──────────┐ │
+│  │ src/main.rs    [+12]  │  │ h:a3f82c... (main.rs)     │ │
+│  │ src/lib.rs     [ -3]  │  │ h:b7e91d... (lib.rs)      │ │
+│  │ _DOCS/foo.md   [+45]  │  │ h:c15d62... (foo.md)      │ │
+│  └───────────────────────┘  └───────────────────────────┘ │
+│  ┌─ Noether Check ──────────────────────────────────────┐ │
+│  │ |N|=2, |D|=0 → divergence=2  Δ²R=+3 (expansion)      │ │
+│  │ Rank flux: +15 (net new content)                     │ │
+│  └──────────────────────────────────────────────────────┘ │
+│  ┌─ Actions ────────────────────────────────────────────┐ │
+│  │ [C]ommit & Ingest  [A]bort  [V]iew diff  [R]efresh   │ │
+│  └──────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────┘
+```
+
+The Textual interface sits between the developer and `git commit`, adding
+HLLSet ingestion as a transparent step. The developer sees what will be
+ingested, how it affects the lattice state, and whether the Noether
+controller flags anything unusual — all before the commit reaches GitHub.
+
+### Self-Referential Closure
+
+This closes the final loop: the system that monitors external data also
+monitors its own evolution. The same rank algebra that tracks token
+frequency in sensor streams tracks code churn in the repository. The
+same Fisher matrix that detects coupled bit positions detects coupled
+source files. The same Noether controller that flags environmental
+divergence flags refactoring storms.
+
+The architecture is **self-describing** — the lattice that records the
+project's history is built from the project's own code, ingested through
+the project's own pipeline.
+
+---
+
 ## 18. Acknowledgment
 
 This architecture emerged through dialogue between Alex Mylnikov, Deependra Kumar and DeepSeek
