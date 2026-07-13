@@ -48,23 +48,63 @@ def run_hllset(script: str, timeout: float = 15.0) -> str:
     return proc.stdout.strip()
 
 
-def get_staged_files() -> list[dict]:
-    """Get list of staged (git add'd) files with status."""
-    result = subprocess.run(
+def get_changed_files() -> list[dict]:
+    """Get list of changed files: staged + unstaged, deduplicated by path.
+
+    Staged statuses take priority over unstaged for the same file.
+    """
+    staged = {}
+    unstaged = {}
+
+    # Staged: git diff --cached
+    r = subprocess.run(
         ["git", "diff", "--cached", "--name-status"],
         capture_output=True, text=True, cwd=str(PROJECT_ROOT),
     )
-    files = []
-    for line in result.stdout.strip().split("\n"):
-        if not line:
-            continue
+    for line in r.stdout.strip().split("\n"):
+        if not line: continue
         parts = line.split("\t", 1)
         if len(parts) == 2:
-            status, fpath = parts
-            path = PROJECT_ROOT / fpath
-            if path.exists() and path.is_file():
-                size = path.stat().st_size
-                files.append({"status": status, "path": fpath, "size": size})
+            staged[parts[1]] = parts[0]
+
+    # Unstaged: git diff --name-status (working tree vs index)
+    r = subprocess.run(
+        ["git", "diff", "--name-status"],
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+    )
+    for line in r.stdout.strip().split("\n"):
+        if not line: continue
+        parts = line.split("\t", 1)
+        if len(parts) == 2:
+            unstaged[parts[1]] = parts[0]
+
+    # Untracked: git ls-files --others --exclude-standard
+    r = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+    )
+    for fpath in r.stdout.strip().split("\n"):
+        if fpath:
+            unstaged[fpath] = "U"  # untracked
+
+    # Merge: staged overrides unstaged
+    all_files = {}
+    for fpath, status in unstaged.items():
+        all_files[fpath] = {"status": status, "staged": False}
+    for fpath, status in staged.items():
+        all_files[fpath] = {"status": status, "staged": True}
+
+    files = []
+    for fpath, info in all_files.items():
+        path = PROJECT_ROOT / fpath
+        if path.exists() and path.is_file():
+            size = path.stat().st_size
+            files.append({
+                "status": info["status"],
+                "path": fpath,
+                "size": size,
+                "staged": info["staged"],
+            })
     return files
 
 
@@ -99,6 +139,7 @@ class HllsetCommitApp(App):
     .status-A { color: $success; }
     .status-M { color: $warning; }
     .status-D { color: $error; }
+    .status-U { color: $text-muted; }
     """
 
     BINDINGS = [
@@ -145,21 +186,27 @@ class HllsetCommitApp(App):
     def refresh_files(self):
         table = self.query_one("#files-table", DataTable)
         table.clear()
-        table.add_columns("St", "File", "Size")
-        files = get_staged_files()
+        table.add_columns("St", "File", "Size", "Idx")
+        files = get_changed_files()
+        staged = sum(1 for f in files if f.get("staged"))
+        unstaged = len(files) - staged
         self.staged_count = len(files)
         for f in files:
-            status = Text(f["status"], style=f"status-{f['status']}")
+            status_label = f["status"]
+            if not f.get("staged") and f["status"] != "U":
+                status_label = f"{f['status']}*"  # asterisk = unstaged
+            status = Text(status_label, style=f"status-{f['status']}")
             size_str = f"{f['size']:,}B" if f["size"] < 1024 else f"{f['size']/1024:.1f}KB"
-            table.add_row(status, f["path"], size_str)
+            idx_str = "+" if f.get("staged") else "~"
+            table.add_row(status, f["path"], size_str, idx_str)
 
         self.query_one("#files-title", Static).update(
-            f"Staged Files ({self.staged_count})"
+            f"Changed Files ({self.staged_count} total: {staged} staged, {unstaged} unstaged)"
         )
 
     def refresh_noether(self):
-        """Quick Noether check on staged files."""
-        files = get_staged_files()
+        """Quick Noether check on all changed files."""
+        files = get_changed_files()
         n_count = sum(1 for f in files if f["status"] == "A")
         d_count = sum(1 for f in files if f["status"] == "D")
         m_count = sum(1 for f in files if f["status"] == "M")
