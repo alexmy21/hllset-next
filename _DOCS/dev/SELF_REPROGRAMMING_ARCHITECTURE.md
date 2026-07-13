@@ -1768,6 +1768,153 @@ The architecture is **self-describing** — the lattice that records the
 project's history is built from the project's own code, ingested through
 the project's own pipeline.
 
+### 19.1 LLM Context Views — Bridging Prompts to Code
+
+The self-ingestion pipeline stores every source file as an HLLSet. But raw code
+tokens are a poor match for natural language queries — a user prompt "connect to
+the database" needs to find `fn open_connection()`, not token-level overlap with
+"connect" and "database" scattered across unrelated files.
+
+**Solution: per-directory `llms.txt` + folder views.**
+
+Each code directory gets an `llms.txt` file — a human-written annotation that
+describes what the code in that directory does, in the same semantic space as
+user prompts. The `llms.txt` is ingested into the lattice with a dedicated
+prefix `l:` (LLM context), distinct from `h:` (code HLLSets) and `v:` (views).
+
+A **folder view** is a union HLLSet that aggregates all code files in a
+directory plus its `llms.txt`. Views carry the `v:` prefix.
+
+```text
+crates/hllset-storage/
+├── llms.txt               → l:<sha1>   LLM context (human-written annotation)
+├── src/
+│   ├── lib.rs             → h:<sha1>   code
+│   ├── storage.rs         → h:<sha1>   code
+│   ├── ipfs.rs            → h:<sha1>   code
+│   └── ...
+└── [view]                 → v:<sha1>   union(lib, storage, ipfs, ..., llms.txt)
+```
+
+**Query flow for prompt → code matching:**
+
+```text
+1. User prompt: "connect to the database"
+2. tokenize(prompt) → HLLSet P
+3. Phase 1 — LLM context scan:
+     for each l:<sha1> in lattice:
+         τ = BSS(P, l:llms)
+     if τ > 0.5: that directory is semantically relevant
+4. Phase 2 — Folder view refinement:
+     for top-K directories from Phase 1:
+         τ = BSS(P, v:folder_view)
+     return top matches with their code files
+5. AI coder receives: matched llms.txt content + matched code files + prompt
+```
+
+**Why this works:**
+
+| Property | Mechanism |
+|----------|-----------|
+| Semantic gap bridged | `llms.txt` is written in natural language, same space as prompts |
+| Maintainable | One `llms.txt` per directory, not per file |
+| Discoverable | `l:` prefix enables targeted BSS scans without deserializing code HLLSets |
+| Self-reinforcing | New code + its `llms.txt` become instantly searchable via the commit hook |
+| Privacy-preserving | `llms.txt` describes what the code does, not the proprietary logic itself |
+
+**The `l:` prefix taxonomy.** Extended from the existing namespace:
+
+| Prefix | Type | Origin | Use case |
+|--------|------|--------|----------|
+| `h:` | HLLSet | Any operation | General content-addressed data |
+| `o:` | Original | Tokenization | Source-of-truth tokens from environment |
+| `r:` | Retained | Intersection | R-link — structural relationship |
+| `d:` | Departed | Difference | What left the lattice |
+| `n:` | New | Difference | What entered the lattice |
+| `v:` | View | Union aggregation | Folder-level aggregate of code + context |
+| `l:` | LLM context | Human annotation | Semantic bridge between prompts and code |
+
+**Self-referential closure.** The architecture that ingests code for
+self-monitoring also ingests `llms.txt` for self-description. When a developer
+writes an `llms.txt` and commits, the post-commit hook ingests it as `l:<sha1>`
+and updates the folder view `v:<sha1>`. The lattice that records the project's
+history also becomes the index that makes the project's code discoverable by
+natural language — through the same pipeline, with the same operations, stored
+in the same content-addressed space.
+
+**Design principle: unions make joins free.**
+
+The two-phase query flow (l: → v: → h:) works without graph traversal because
+every aggregation is pre-computed at ingestion time and stored as a cheap `v:`
+HLLSet. A folder view is one OR over its constituent files. A commit view is one
+OR over changed files. Both are idempotent — re-computing produces the same
+`v:<sha1>`. The result: queries that would require DAG traversal, index joins,
+and set intersection in a traditional system reduce to a single BSS call.
+
+```text
+Traditional:
+  "files touched in storage AND mesh this sprint?"
+    → traverse commit DAG → diff each commit → join file lists → intersect
+
+HLLSet:
+  "files touched in storage AND mesh this sprint?"
+    → BSS(v:commit_window, v:storage_folder ∪ v:mesh_folder)
+    → one AND + one popcount
+```
+
+No embeddings. No vector database. No SPARQL endpoint. No graph traversal.
+Every aggregation is pre-computed once (OR), every query is one AND+popcount.
+The same two operations the FPGA already runs for everything else.
+
+### 19.2 Implementation Notes
+
+1. **Existing documentation is unchanged.** The `_DOCS/` tree, `README.md`, and
+   inline docstrings remain the primary human documentation. `llms.txt` files
+   are a separate semantic index layer -- they annotate, they do not replace.
+
+2. **Auto-generated `llms.txt` from doc comments.** `llms.txt` files are not
+   hand-maintained. The post-commit hook extracts doc comments from changed files
+   and regenerates the containing folder's `llms.txt` automatically:
+
+   ```text
+   For each changed .rs file:
+       extract //! module doc → "[description](relative/path)"
+       extract /// pub fn docs → "[description](relative/path)"
+   For each changed .md file:
+       extract first paragraph → "[description](relative/path)"
+   ```
+
+   Format: `[one-sentence description](path/to/file)` — descriptions come from
+   the code itself, paths are relative. The same commit that changes code docs
+   also regenerates the semantic index. Zero human maintenance.
+
+   ```text
+   crates/hllset-storage/llms.txt (auto-generated):
+       [Content-addressed storage for HLLSets](src/)
+       [ipfrs-native storage backend backed by sled](src/ipfs.rs)
+       [Sync storage trait for HLLSet data](src/storage.rs)
+       ...
+   ```
+
+3. **Auto-update on self-reflection commit.** When a commit includes code or doc
+   changes, the post-commit hook: (a) regenerates affected `llms.txt` files,
+   (b) ingests them as `l:<sha1>`, (c) recomputes any affected folder views
+   `v:<sha1>` = union(all files in dir + llms.txt). This keeps the semantic
+   index in lockstep with the codebase — no manual step, no drift.
+
+4. **Designated persistent storage.** The lattice metadata lives in
+   `.hllset_lattice/metadata.json` (not committed to git). The ipfrs-native
+   block storage (sled database) lives in `.hllset_lattice/storage/`. Both
+   paths are in `.gitignore`. The storage directory persists across CLI
+   sessions, making HLLSets from previous ingestions available to the running
+   application without re-ingestion.
+
+   ```text
+   .hllset_lattice/
+   +-- metadata.json         # file -> HLLSet key index, commit history
+   +-- storage/              # sled database (ipfrs-native block store)
+   ```
+
 ---
 
 ## 18. Acknowledgment
