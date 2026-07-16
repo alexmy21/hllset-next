@@ -1935,18 +1935,18 @@ because the system owns the data it generates.
 ```text
 +-- hllset-dev TUI ----------------------------------------------+
 | +- Prompt ───────────────────────────────────────────────────+ |
-| | > Implement the auth module                                 | |
-| +-------------------------------------------------------------+ |
+| | > Implement the auth module                                | |
+| +------------------------------------------------------------+ |
 | +- Response ─────────────────────────────────────────────────+ |
-| | DeepCode: I'll create crates/auth/ with the following...    | |
-| | [code blocks appear here]                                   | |
-| +-------------------------------------------------------------+ |
+| | DeepCode: I'll create crates/auth/ with the following...   | |
+| | [code blocks appear here]                                  | |
+| +------------------------------------------------------------+ |
 | +- Files ───────┬────────────────────────────────────────────+ |
 | | St  File      │  Actions                                   | |
-| | M   auth.rs   │  [Commit All] [Generate Summary] [Refresh]  | |
-| | A   auth.toml │                                             | |
+| | M   auth.rs   │  [Commit All] [Generate Summary] [Refresh] | |
+| | A   auth.toml │                                            | |
 | +───────────────┴────────────────────────────────────────────+ |
-+-----------------------------------------------------------------+
++----------------------------------------------------------------+
 ```
 
 **Frame 1: Prompt.** User types prompts in plain English. The TUI sends them
@@ -2030,6 +2030,49 @@ with which CIDs. Querying the lattice is querying the metadata.
   - Open questions or future work
 - IPFS storage: `ipfrs add <summary_file>` → CID. The CID is recorded in
   the commit metadata and stored alongside the summary HLLSet.
+
+### 19.4 The Trait-Boundary Principle — Why Redis Was 150 Lines
+
+The `RedisStorage` backend took 150 lines of Rust to implement the `Storage`
+trait — and then the entire framework (Lua runtime, materializer, DuckDB LUT,
+ingest pipeline, mesh nodes, five-level rank algebra) worked against Redis
+without a single change outside the crate.
+
+```text
+                ┌────────────────────────────────────┐
+                │   hllset-dsl (Lua runtime)         │
+                │   hllset-materialize (LUT engine)  │
+                │   hllset-ranks (five-level algebra)│
+                │   hllset-mesh (pub/sub bus)        │
+                │   scripts/ingest.py (pipeline)     │
+                └────────────┬───────────────────────┘
+                             │ &dyn Storage
+                ┌────────────┴───────────────────────┐
+                │  trait Storage {                   │
+                │    store, load, exists, delete,    │
+                │    list, pin, unpin, gc            │
+                │  }                                 │
+                └─┬──────────┬──────────────┬────────┘
+                  │          │              │
+              MemoryStorage  IpfrsNative   RedisStorage
+              (dev/test)     (sled/local)  (enterprise)
+```
+
+**Principle:** Isolate infrastructure behind a minimal trait boundary.
+Every backend implements the same 6 methods. Everything above the trait
+is pure domain logic in Rust, pointer to `Forge`, and Python scripts —
+none of it knows or cares where bytes live.
+
+**Consequence:** When `RedisStorage::connect("redis://...")` passed its
+first PING, the entire HLLSet lattice stack was already running against
+it. 212 tests. 0 failures. No integration work. Because the trait boundary
+had already been paid for.
+
+This is the same principle that will enable the LUT ↔ RediSearch bridge
+and the graph ops ↔ RedisGraph bridge. Each is a new crate implementing
+a trait. Each lights up the entire framework on connection.
+
+---
 
 ## 20. Graph Engine Transition Path — RedisGraph + HLLSet
 
@@ -2302,6 +2345,7 @@ learning, temporal lattice layers, fire-and-forget communication, system
 lifecycle via reproduction) were collaborative insights that neither participant
 possessed at the start. The dialogue itself was the design process.
 
-Resume
+## References
 
-deepcode --resume 9e1fe6a5-c8b8-4a4e-8bae-875ef1b75918
+1. [MDBS_DDL_](https://bitsavers.trailing-edge.com/pdf/microDatabaseSystems/MDBS_DDL_Manual_Dec1985.pdf)
+2. [Real-Time Systems Design and Analysis](https://staff.emu.edu.tr/alexanderchefranov/Documents/CMSE443/CMSE443%20Spring2020/Laplante2012%20Real-Time%20Systems%20Design%20and%20Analysis.pdf)

@@ -77,7 +77,7 @@ cargo run -- --mesh-noether 0.1
 
 ```bash
 cargo test
-# 189 tests, 0 failures
+# 212 tests, 0 failures
 ```
 
 ## Notebooks
@@ -119,10 +119,42 @@ done
 
 | Aspect | Original (hllset_dsl) | New (hllset-next) |
 | -------- | ---------------------- | ------------------- |
-| Storage | HTTP to Go IPFS daemon (`ureq`) | `ipfrs-core` CID/Block types + `sled` |
+| Storage | HTTP to Go IPFS daemon (`ureq`) | `ipfrs-core` CID/Block types + `sled` (local) + `Redis` (enterprise) |
 | Messaging | ROS 2 Python nodes (subprocess) | `hllset-mesh` in-process tokio bus |
 | External deps | Go, Python, ROS 2, rclpy | None beyond Rust |
 | Language mix | Rust + Python + Go | Rust only |
+
+## Storage Backends — The Trait-Boundary Design
+
+Every storage backend implements the same `Storage` trait (6 methods: `store`,
+`load`, `exists`, `delete`, `list`, `gc`). Switching backends is a one-line
+change — everything above the trait (Lua runtime, materializer, DuckDB LUT,
+ingest pipeline, mesh nodes, rank algebra) works identically.
+
+| Backend | Crate | Use case | Status |
+|---------|-------|----------|--------|
+| `MemoryStorage` | `hllset-storage` | Development, testing | 13 tests |
+| `IpfrsNativeStorage` | `hllset-storage` | Local (sled, no daemon) | 13 tests |
+| `RedisStorage` | `hllset-storage-redis` | Enterprise (Redis 7.0.15 + Roaring Bitmap + RediSearch + RedisGraph) | 5 tests |
+
+**Redis quick start:**
+
+```bash
+# Build and start the Redis container
+podman build -t hllset-redis -f redis/Dockerfile .
+podman run -d --name hllset-redis -p 6379:6379 hllset-redis
+
+# Use it in Rust
+let store = RedisStorage::connect("redis://127.0.0.1:6379").unwrap();
+store.store("h:abc123", &hllset_bytes).unwrap();
+```
+
+The Redis container includes `redis-roaring` (compressed HLLSet bitmask
+storage), `redisearch` (token LUT indexing), and `redisgraph` (graph engine
+for Phase 2+ integration). All processing stays in Rust — Redis is storage only.
+
+See [`_DOCS/notebooks/10_redis_bridge.ipynb`](_DOCS/notebooks/10_redis_bridge.ipynb)
+for the validation notebook.
 
 ## What's Next
 
