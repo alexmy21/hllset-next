@@ -132,7 +132,7 @@ change — everything above the trait (Lua runtime, materializer, DuckDB LUT,
 ingest pipeline, mesh nodes, rank algebra) works identically.
 
 | Backend | Crate | Use case | Status |
-|---------|-------|----------|--------|
+| --------- | ------- | ---------- | -------- |
 | `MemoryStorage` | `hllset-storage` | Development, testing | 13 tests |
 | `IpfrsNativeStorage` | `hllset-storage` | Local (sled, no daemon) | 13 tests |
 | `RedisStorage` | `hllset-storage-redis` | Enterprise (Redis 7.0.15 + Roaring Bitmap + RediSearch + RedisGraph) | 5 tests |
@@ -153,7 +153,7 @@ The Redis container includes `redis-roaring` (compressed HLLSet bitmask
 storage), `redisearch` (token LUT indexing), and `redisgraph` (graph engine
 for Phase 2+ integration). All processing stays in Rust — Redis is storage only.
 
-See [`_DOCS/notebooks/10_redis_bridge.ipynb`](_DOCS/notebooks/10_redis_bridge.ipynb)
+See [`_DOCS/notebooks/11_redis_bridge.ipynb`](_DOCS/notebooks/11_redis_bridge.ipynb)
 for the validation notebook.
 
 ## What's Next
