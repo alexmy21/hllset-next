@@ -258,7 +258,7 @@ degrades gracefully — stop forecasting, just react.
 ### 7.1 What Already Exists
 
 | Component | Status | Location |
-|---|---|---|
+| --- | --- | --- |
 | TF vector (32,768 × f64) | Specified, simulated in notebooks | `TFSimulator` in notebooks 08, 10 |
 | ΔTF, Δ²TF derivatives | Specified | Section 4 of proposal, Section 17.1 of architecture doc |
 | Fisher matrix $F_{bb'}$ | Specified | Section 17.1 of architecture doc |
@@ -268,7 +268,7 @@ degrades gracefully — stop forecasting, just react.
 ### 7.2 What Needs Building
 
 | Component | Effort | Description |
-|---|---|---|
+| --- | --- | --- |
 | Constraint propagator | ~500 lines Rust | Lightweight CP engine over sparse 32,768-var domain |
 | Forecast-TF projection | ~100 lines | Apply TF_forecast to dictionary, return ranked HLLSets |
 | Surprise quantification | ~200 lines | Structured delta: per-bit deviation + Fisher violation report |
@@ -426,7 +426,7 @@ The flashlight model doesn't introduce new machinery. It describes how the
 existing components interact under iterative forecasting:
 
 | Flashlight concept | Existing HLLSet component |
-|---|---|
+| --- | --- |
 | Beam pattern | Fisher matrix $F_{bb'}$ |
 | Beam width at distance $k$ | Variable domain after $k$ propagation steps |
 | Degradation rate per bit | Historical velocity bounds $[v_{\min}(b), v_{\max}(b)]$ |
