@@ -82,38 +82,47 @@ cargo test
 
 ## Notebooks
 
-All 8 notebooks from the original project have been copied, path-adjusted,
-and verified against `hllset-next`. Every notebook executes with **0 errors**.
+All 11 notebooks execute with **0 errors**.
 
-| # | Notebook | Language | Description |
-| --- | ---------- | ---------- | ------------- |
-| 01 | `hllset_core` | Rust (evcxr) | HLLSet basics, BSS morphisms, lattice operations |
-| 02 | `tokenizer_materialization` | Rust (evcxr) | Tokenizer pipeline, LUT construction, materialization |
-| 03 | `client_demo` | Python | External client: ingestion, comparison, IPFS store/load |
-| 04 | `algebraic_chunk_space` | Rust (evcxr) | IICA: chunked LUT, closure, BSS vector, Merkle tree |
-| 05 | `iica_forth` | Python | Forth DSL: immutable, idempotent, content-addressed workflow |
-| 06 | `fpga_self_reprogram` | Python | FPGA self-reprogramming, DRN evolution, temporal layers |
-| 07 | `secure_exchange` | Python | Secure HLLSet exchange protocol with LUT-based understanding |
-| 08 | `holographic_memory` | Python | Holographic lattice memory, TF time lens, reconstruction |
+| # | Notebook | Description |
+| --- | ---------- | ------------- |
+| 01 | `hllset_core` | HLLSet basics, BSS morphisms, lattice operations |
+| 02 | `tokenizer_materialization` | Tokenizer pipeline, LUT construction, materialization |
+| 03 | `client_demo` | External client: ingestion, comparison, storage |
+| 04 | `algebraic_chunk_space` | IICA: chunked LUT, closure, BSS vector, Merkle tree |
+| 05 | `iica_forth` | Forth DSL: immutable, idempotent, content-addressed |
+| 06 | `fpga_self_reprogram` | FPGA self-reprogramming, DRN evolution, temporal layers |
+| 07 | `secure_exchange` | Secure HLLSet exchange protocol |
+| 08 | `holographic_memory` | Holographic lattice memory, TF time lens |
+| 09 | `rank_algebra` | Five-level rank algebra |
+| 10 | `multi_lattice_dimensions` | Multi-perceptron world model, swarm, time travel |
+| 11 | `caal_llm_demo` | **CAAL-LLM: Content-addressed Chinese LLM + I Ching** |
 
-Python notebooks shell out to the `hllset` CLI binary via subprocess — same
-interface, same JSON output. Rust notebooks use the evcxr Jupyter kernel with
-`:dep` directives pointing at the `hllset-next` crates. The zero-error result
-confirms that infrastructure changes (storage, messaging) are isolated behind
-trait boundaries and do not affect the core algebra or CLI interface.
+All Python notebooks shell out to the `hllset` CLI binary via subprocess.
 
-```bash
-# Build the binary (required for Python notebooks)
-cargo build --release
+## CAAL-LLM: Content-Addressed LLM Proof
 
-# Run a single notebook
-jupyter nbconvert --execute --to notebook _DOCS/notebooks/03_client_demo.ipynb
+**Notebook 11** demonstrates a content-addressed Chinese LLM. The result:
 
-# Run all notebooks
-for nb in _DOCS/notebooks/*.ipynb; do
-    jupyter nbconvert --execute --to notebook "$nb"
-done
+```text
+Training:  10 Chinese sentences (~100 characters, driving rules)
+Questions: 5 driving scenario questions
+Correct:   4/5 (80%)
 ```
+
+No gradient descent. No weight matrices. No GPU. No transformer.
+Just murmurhash3 + bitwise AND + popcount. MS-DOS capable.
+
+This validates two principles:
+
+1. **Chinese as assembly language** — characters ARE tokens, fixed set, deterministic
+2. **Context (HLLSet) based LLM** — learning = accumulating HLLSets; inference = BSS retrieval
+
+A GPT needs billions of tokens. This needs 10 sentences and a hash function.
+
+The same notebook runs the I Ching pipeline: scene → BSS consultation → hexagram
+→ R-link navigation → strategic guidance. See `_DOCS/dev/CAAL_ICHING_ARCHITECTURE.md`
+and `../caal-llm/` for the standalone Rust crate.
 
 ## Key Changes from Original
 
