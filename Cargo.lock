@@ -1248,6 +1248,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hllset-bridge"
+version = "0.2.0"
+dependencies = [
+ "hllset-core",
+]
+
+[[package]]
 name = "hllset-cli"
 version = "0.2.0"
 dependencies = [
@@ -1363,6 +1370,15 @@ dependencies = [
  "hllset-storage",
  "redis",
  "thiserror",
+]
+
+[[package]]
+name = "hllset-temporal"
+version = "0.2.0"
+dependencies = [
+ "hllset-core",
+ "hllset-dsl",
+ "hllset-storage",
 ]
 
 [[package]]

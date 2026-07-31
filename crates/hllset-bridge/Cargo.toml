@@ -1,0 +1,10 @@
+[package]
+name = "hllset-bridge"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Universal Bridge: cross-domain HLLSet re-representation with 3-gram fingerprinting and Spearman rank correlation"
+
+[dependencies]
+hllset-core = { workspace = true }

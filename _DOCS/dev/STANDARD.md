@@ -1,7 +1,7 @@
 # HLLSet Development Standard
 
 > **Status:** Authoritative — supersedes all per-topic dev docs listed in §0.2
-> **Date:** July 25, 2026
+> **Date:** July 31, 2026 (updated: Phase 1-3 implementation complete)
 > **Scope:** hllset-next (core library) + caal-llm (reference application)
 >
 > This document consolidates all development documents into a single, internally
@@ -241,9 +241,10 @@ COMMIT   : HLLSet^5 → CID
 
 ### 2.2 Object Namespaces
 
-`[PART]` **Current code status:** Only `h:` and `c:` prefixes are implemented in
-`hllset-core/src/core/content_addr.rs`. The full taxonomy is specified below —
-new code must use these prefixes.
+`[IMPL]` **Current code status:** All namespace prefixes are implemented in
+`hllset-core/src/core/content_addr.rs`. The `make_cid`/`parse_cid` functions
+validate prefix correctness and SHA-1 format. Per-prefix generators exist for
+all CA namespaces (o/h/r/d/n/t/v/l/c) plus user (u) and system: temporal keys.
 
 | Namespace | Identity | Replication | Meaning |
 | ----------- | ---------- | ------------- | --------- |
@@ -284,8 +285,8 @@ new code must use these prefixes.
 
 ### 2.3 Wire Formats (Canonical)
 
-`[PART]` **Status:** HLLSet wire format is implemented. TFVec and Commit wire
-formats are not yet in `hllset-core`.
+`[IMPL]` **Status:** HLLSet, TFVec, and Commit wire formats are all implemented
+in `hllset-core` (`serialization.rs`, `tfvec.rs`, `commit.rs`).
 
 #### HLLSet (CA)
 
@@ -381,8 +382,13 @@ pub trait HlppStorage {
 }
 ```
 
-**Implemented backends:** `MemoryStorage` (dev/test), `IpfrsNative` (sled/local)
-`[IMPL]`; `RedisStorage` (enterprise) `[IMPL]`.
+**Implemented backends:** `MemoryStorage` (dev/test, full temporal support including
+CAS) `[IMPL]`; `IpfrsNativeStorage` (sled/local) `[IMPL]`; `RedisStorage` (enterprise)
+`[IMPL]`.
+
+**Note:** The Rust trait is named `Storage` (not `HlppStorage`). Legacy method names
+`store`/`load`/`exists` are provided as default methods delegating to the canonical
+HLPP names `put`/`get`/`has` for backward compatibility.
 
 **The Trait-Boundary Principle:** Isolate infrastructure behind a minimal trait
 boundary. Every backend implements the same methods. Everything above the trait
@@ -391,9 +397,9 @@ is pure domain logic — none of it knows or cares where bytes live. This is why
 
 ### 2.6 Interface Bindings
 
-`[PART]` **Status:** Rust binding is implemented. Lua CA operations are
-implemented; Lua temporal operations are not yet implemented. Forth binding is
-parser-only (see §4.4). HTTP binding is specified but not implemented.
+`[IMPL]` **Status:** Rust binding is implemented. Lua CA and temporal operations
+are implemented. Forth binding supports parsing, colon-definitions, and Lua lowering.
+HTTP binding is specified but not implemented.
 
 #### Lua
 
@@ -407,7 +413,7 @@ hllset.pin(key)          -- PIN
 hllset.unpin(key)        -- UNPIN
 hllset.gc()              -- GC
 
--- Temporal (to implement)
+-- Temporal (implemented)
 hllset.get_tmp(key)      -- GET_TMP
 hllset.put_tmp(key, val) -- PUT_TMP
 hllset.cas_tmp(k, o, n)  -- CAS_TMP
@@ -697,8 +703,10 @@ D, R, N are themselves HLLSets. The evolution record IS an HLLSet.
 
 ### 4.2 The Temporal Pyramid (L0–L6)
 
-`[SPEC]` **Code status:** No crate-level implementation. The pyramid is fully
-specified here. Notebook 06 demonstrates the concept against the CLI binary.
+`[IMPL]` **Code status:** Implemented in `hllset-temporal` crate. Configurable
+N-layer pyramid with automatic carry cascade, system state union, per-layer TF
+snapshots, and Noether invariant verification. Presets: standard (7-layer),
+high-frequency, realtime-control, document-analysis, minimal.
 
 #### The Default Pyramid
 
@@ -886,7 +894,9 @@ Window W(t) = { S0(now), S1, S2, S3, S4(deepest) }
 
 ### 4.6 The Noether Controller
 
-`[SPEC]` No crate-level implementation.
+`[IMPL]` Implemented in `hllset-mesh/src/noether_controller.rs`. Integer-only flux
+with halving decay (aligned with rank algebra). Async Tokio task accessible via
+`hllset --mesh-noether <threshold>`.
 
 The Noether controller monitors the cross-layer relationship matrix and decides
 **which layer** should drive the next action:
@@ -953,9 +963,9 @@ it — new slang makes its bit positions hot; stale positions quietly fall.
 
 ### 4.8 The Forth Dictionary
 
-`[PART]` **Code status:** Parser → AST → `compile_to_lua` only. Colons are
-parsed but not lowered. Advertised backends (`lower_rust`, `lower_hw`) do not
-exist. The dictionary is not yet the seat of learning — it is a syntax layer.
+`[IMPL]` **Code status:** Parser → AST → `compile_to_lua` with colon-definition
+support. Colon words (`: NAME ... ;`) are parsed into `Word::ColonDef` and lowered
+to Lua function definitions. Rust and Verilog backends remain [SPEC].
 
 The Forth hllang serves as the **canonical AST** that unifies all backends:
 
@@ -1186,7 +1196,9 @@ produce 3-gram HLLSets with correlated rank distributions.
 
 ### 5.3 The Bridge Algorithm
 
-`[SPEC]` for the full implementation. Currently demonstrated in notebooks.
+`[IMPL]` for the core algorithm. Implemented in `hllset-bridge` crate:
+`re_represent()` (Pass 2), `extract_3gram()`, `spearman_rank_correlation()`,
+and `bridge()` pipeline. The full cover-selection algorithm remains [SPEC].
 
 ```text
 algorithm bridge(source_HLLSet, target_lattice):
@@ -1386,9 +1398,9 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 | --------- | -------- | ---------- | ------- |
 | HLLSet bitmap (1024×32) | `[IMPL]` | hllset-core | Core `HLLSet` struct, serialization, content keys |
 | murmurhash3 tokenization | `[IMPL]` | hllset-core | Deterministic hash → (reg, tz) |
-| Content addressing (SHA1) | `[IMPL]` | hllset-core | `h:<sha1>` and `c:<sha1>` only; o/r/d/n/t/v/l not yet |
-| TFVec wire format | `[PART]` | — | Specified, not yet in hllset-core |
-| Commit struct | `[PART]` | — | Specified, not yet in hllset-core |
+| Content addressing (SHA1) | `[IMPL]` | hllset-core | Full namespace taxonomy: o/h/r/d/n/t/v/l/c + u/system: |
+| TFVec wire format | `[IMPL]` | hllset-core | `tfvec.rs` — 262,148-byte monotonic CRDT |
+| Commit struct | `[IMPL]` | hllset-core | `commit.rs` — JSON wire format, `t:<sha1>` content key |
 | TokenLUT / CatalogLUT | `[IMPL]` | hllset-materialize | Multi-seed consensus, monotonic TF tracking |
 | BSS (inclusion/exclusion) | `[IMPL]` | hllset-core | Float-based; architectural direction is R-links |
 | Jaccard similarity | `[IMPL]` | hllset-core | Float-based |
@@ -1398,14 +1410,14 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 
 | Concept | Status | Crate(s) | Notes |
 | --------- | -------- | ---------- | ------- |
-| `Storage` trait (6 methods) | `[IMPL]` | hllset-storage | The best seam in the codebase |
-| `MemoryStorage` | `[IMPL]` | hllset-storage | Dev/test |
+| `Storage` trait (11 methods) | `[IMPL]` | hllset-storage | CA (put/get/has/list/pin/unpin/gc/delete) + temporal (put_tmp/get_tmp/cas_tmp) |
+| `MemoryStorage` | `[IMPL]` | hllset-storage | Dev/test, full temporal + CAS support |
 | `IpfrsNative` (sled) | `[IMPL]` | hllset-storage | Local persistent |
 | `RedisStorage` | `[IMPL]` | hllset-storage-redis | Enterprise, ~150 lines |
-| Temporal ops (get_tmp, put_tmp, cas_tmp) | `[PART]` | — | Specified by HLPP, not yet in trait |
+| Temporal ops (get_tmp, put_tmp, cas_tmp) | `[IMPL]` | hllset-storage | In trait with default no-ops; MemoryStorage fully implements |
 | `ipfrs-core` path dependency | `[INACC]` | hllset-storage | Absolute path — blocks standalone builds |
 | Lua CA bindings | `[IMPL]` | hllset-dsl | store/load/exists/list/pin/unpin/gc |
-| Lua temporal bindings | `[PART]` | — | get_tmp/put_tmp/cas_tmp not yet |
+| Lua temporal bindings | `[IMPL]` | hllset-dsl | get_tmp/put_tmp/cas_tmp |
 
 ### 7.3 Rank Algebra
 
@@ -1414,18 +1426,18 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 | Five-level rank (F, G, H, K, L, M) | `[IMPL]` | hllset-ranks | Integer-only, real tests |
 | Rank derivatives (ΔR, Δ²R) | `[IMPL]` | hllset-ranks | D/R/N decomposition for rank flux |
 | D/R/N ephemeral computation | `[IMPL]` | hllset-ranks | Not yet persisted as r:/d:/n: |
-| Per-register TF ranking | `[PART]` | hllset-ranks | Algorithm specified, partial impl |
+| Per-register TF ranking | `[IMPL]` | hllset-ranks | `TfRegisterRanker` — TFVec → 1024 register ranks |
 | Cross-layer BSS matrix | `[SPEC]` | — | No implementation |
 
 ### 7.4 Temporal Pyramid
 
 | Concept | Status | Crate(s) | Notes |
 | --------- | -------- | ---------- | ------- |
-| L0–L6 layer structure | `[SPEC]` | — | No crate; demonstrated in notebook 06 |
-| Carry mechanism | `[SPEC]` | — | Union aggregation at time boundaries |
-| Configurable pyramid (N, d_i) | `[SPEC]` | — | Specified, not implemented |
-| TF stack (per-layer TF snapshots) | `[SPEC]` | — | system:tf_0 through system:tf_6 |
-| Layer clock | `[SPEC]` | — | DRN at every carry boundary |
+| L0–L6 layer structure | `[IMPL]` | hllset-temporal | Configurable N-layer `TemporalPyramid` struct |
+| Carry mechanism | `[IMPL]` | hllset-temporal | Automatic cascade with target-layer time advance |
+| Configurable pyramid (N, d_i) | `[IMPL]` | hllset-temporal | `TemporalPyramid::new(durations)` + presets |
+| TF stack (per-layer TF snapshots) | `[IMPL]` | hllset-temporal | `tf_snapshot()`, `per_layer_tf_snapshots()` |
+| Layer clock | `[IMPL]` | hllset-temporal | `ingest()` / `ingest_with_delta()` boundary detection |
 
 ### 7.5 Architecture
 
@@ -1433,10 +1445,10 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 | --------- | -------- | ---------- | ------- |
 | Evolution equation H(t) | `[IMPL]` | — | Conceptual; used across codebase |
 | Fire-and-forget model | `[PART]` | hllset-mesh | Single-process broadcast bus; not distributed |
-| Noether controller | `[PART]` | hllset-mesh | Float-based (0.9 decay); differs from ranks (integer) |
+| Noether controller | `[IMPL]` | hllset-mesh | Integer-only flux with halving decay (rank-algebra aligned) |
 | System lifecycle | `[SPEC]` | — | Specified, not implemented |
 | Holographic memory | `[IMPL]` | — | Conceptual; not a separate crate |
-| Actuation (DeBruijn) | `[PART]` | hllset-dsl | Greedy DFS with 1000-step cap; known edge construction defect |
+| Actuation (DeBruijn) | `[IMPL]` | hllset-dsl | Greedy DFS with 1000-step cap; edge construction fixed |
 | Content-addressable PC | `[SPEC]` | — | argmax(BSS(input, word)) — not in code |
 
 ### 7.6 Forth / DSL
@@ -1445,7 +1457,7 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 | --------- | -------- | ---------- | ------- |
 | Forth parser | `[IMPL]` | hllset-forth | Parser → AST |
 | Forth → Lua lowerer | `[IMPL]` | hllset-forth | `compile_to_lua` |
-| Colon-definition mechanism | `[PART]` | hllset-forth | Parsed but not lowered |
+| Colon-definition mechanism | `[IMPL]` | hllset-forth | `Word::ColonDef` parsed + lowered to Lua functions |
 | Forth → Rust lowerer | `[SPEC]` | — | Advertised, does not exist |
 | Forth → Verilog lowerer | `[SPEC]` | — | Advertised, does not exist |
 | SNOBOL-inspired Pattern | `[IMPL]` | hllset-dsl | Composable pattern matching |
@@ -1463,10 +1475,11 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 
 | Concept | Status | Crate(s) | Notes |
 | --------- | -------- | ---------- | ------- |
-| Re-representation (Pass 2) | `[IMPL]` | — | Demonstrated in notebook; no dedicated crate |
-| 3-gram structural fingerprinting | `[IMPL]` | — | In notebook pipeline |
+| Re-representation (Pass 2) | `[IMPL]` | hllset-bridge | `re_represent()` — bit positions → bridge HLLSet |
+| 3-gram structural fingerprinting | `[IMPL]` | hllset-bridge | `extract_3gram()`, `extract_3gram_from_hllset()` |
+| Spearman rank correlation | `[IMPL]` | hllset-bridge | `spearman_rank_correlation()` with tie handling |
+| Bridge pipeline | `[IMPL]` | hllset-bridge | `bridge()` — re-represent + fingerprint + rank-correlate |
 | Domain LUTs | `[IMPL]` | hllset-materialize | Per-domain token LUT |
-| hllset-bridge crate | `[SPEC]` | — | re_represent.rs, ngram.rs, rank.rs, cover.rs, lut.rs |
 | Statistics constraint | `[SPEC]` | — | Design rule, not code |
 
 ### 7.9 Self-Ingestion
@@ -1480,10 +1493,15 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 
 ### 7.10 Known Defects (from HLLSET_NEXT_REVIEW.md)
 
+**Resolved (July 31, 2026):**
+
+- ~~`to_bytes` swallows serialization errors via `unwrap_or_default`~~ → replaced with `.expect()`
+- ~~De Bruijn edge construction inserts bogus second edge~~ → removed phantom edge
+
+**Open:**
+
 | Defect | Location | Severity |
 | -------- | ---------- | ---------- |
-| `to_bytes` swallows serialization errors via `unwrap_or_default` | hllset-core | High — silent corruption risk for content keys |
-| De Bruijn edge construction inserts bogus second edge | hllset-dsl | High — reconstruction errors |
 | `ChunkMaterializer::open` always returns `Err` | hllset-duckdb | Medium — broken stub |
 | `hllset-duckdb` is actually SQLite | hllset-duckdb | Low — misleading name |
 | `hllset-storage/src/ipfs.rs` has no IPFS I/O | hllset-storage | Low — misleading name |
@@ -1494,13 +1512,15 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 
 ### 7.11 What Is Solid (do not break)
 
-From the review:
+From the review, plus new additions:
 
-- `hllset-core`: bitmap tensor + ops + BSS + content keys; good property tests
+- `hllset-core`: bitmap tensor + ops + BSS + content keys + TFVec + Commit; good property tests
 - Tokenizer/pattern pipeline in `hllset-dsl` (SNOBOL-inspired, composable)
 - `TokenLUT`/`CatalogLUT` (multi-seed consensus)
-- `Storage` trait boundary — the best seam in the codebase
-- `hllset-ranks`: integer-only five-level algebra with real tests
+- `Storage` trait boundary — the best seam in the codebase (now 11 methods with temporal ops)
+- `hllset-ranks`: integer-only five-level algebra with real tests + TfRegisterRanker
+- `hllset-temporal`: configurable N-layer pyramid with carry cascade
+- `hllset-bridge`: two-pass re-representation + Spearman rank correlation
 
 ---
 
@@ -1534,7 +1554,7 @@ HLLSet Algebra application?"
 The mandate has five requirements:
 
 | # | Requirement | Consequence |
-|---|-------------|-------------|
+| --- | ------------- | ------------- |
 | **R1** | **Reference quality.** caal-llm demonstrates best practices in architecture, design, and development. Code that works is not enough — code must be exemplary. | Traits are minimal and well-documented. Crate boundaries are clean. Error handling is explicit. Tests demonstrate patterns for downstream consumers. |
 | **R2** | **Upstream-first prototyping.** When hllset-next lacks a module (e.g., temporal pyramid, bridge crate), caal-llm implements a local prototype, then contributes it upstream once proven. | caal-llm contains `[PROTO]`-marked modules that are candidates for extraction into hllset-next crates (§8.9). |
 | **R3** | **Modular and extensible.** caal-llm defines the standard for domain extensions. Any future domain (sensor data, DNA, audio) must plug in through the same trait boundaries. | Extension traits are first-class (§8.8). The I Ching domain is one implementation of the `Domain` trait — not a special case. |
@@ -1718,7 +1738,7 @@ pub fn init_storage(config: &StorageConfig) -> Result<Arc<dyn Storage>, CaalErro
 **Design rules for the storage layer:**
 
 | Rule | Rationale |
-|------|-----------|
+| ------ | ----------- |
 | Storage is selected by configuration (TOML, env, CLI flag), not by `#[cfg]` | Same binary works with any backend. No recompilation. |
 | Application code receives `Arc<dyn Storage>`, never a concrete type | Adding a backend = adding a variant to the enum + one match arm. Zero changes above this layer. |
 | The storage crate is the **only** crate that imports backend crates | `hllset-storage-redis` is imported only in `caal-storage`. If it's path-blocked, only this crate needs a workaround. |
@@ -1727,7 +1747,7 @@ pub fn init_storage(config: &StorageConfig) -> Result<Arc<dyn Storage>, CaalErro
 **Backend selection guideline:**
 
 | Backend | When to use | Status in hllset-next |
-|---------|------------|----------------------|
+| --------- | ------------ | ---------------------- |
 | `MemoryStorage` | Unit tests, CI, quick experimentation | `[IMPL]` |
 | `IpfrsNative` (sled) | Single-node development, local persistence | `[IMPL]` (path-blocked) |
 | `RedisStorage` | Production, multi-client access, real workloads | `[IMPL]` |
@@ -1822,6 +1842,7 @@ let domains: Vec<Arc<dyn Domain>> = vec![
 ```
 
 The extension standard guarantees:
+
 - `caal-core` never imports `caal-en` (or any domain crate)
 - `caal-pipeline` only knows `Arc<dyn Domain>` — never a concrete type
 - New domains require zero changes to existing crates
@@ -1831,7 +1852,7 @@ The extension standard guarantees:
 When hllset-next specifies a capability but hasn't implemented it (marked
 `[SPEC]` in Part VII), caal-llm follows a three-phase path:
 
-```
+```text
 Phase A: PROTOTYPE in caal-llm
   │  Marked with #[doc = "[PROTO]"] on the module.
   │  Implements the specified behavior from this standard.
@@ -1853,13 +1874,14 @@ Phase C: CONTRIBUTE upstream to hllset-next
 **Current [PROTO] candidates for caal-llm:**
 
 | Module | Maps to hllset-next crate | Priority | Rationale |
-|--------|--------------------------|----------|-----------|
+| -------- | -------------------------- | ---------- | ----------- |
 | `caal-core/src/bridge.rs` | `hllset-bridge` | P0 | Two-pass re-representation is fundamental; caal-llm needs it now |
 | `caal-core/src/rank.rs` | `hllset-ranks` (local subset) | P1 | Five-level rank algebra; currently path-blocked, so local prototype |
 | `caal-core/src/ngram.rs` (3-gram) | `hllset-dsl` extension | P2 | 3-gram structural fingerprinting for cross-domain matching |
 | `caal-pipeline/src/temporal.rs` | `hllset-temporal` | P3 | Per-session temporal tracking; prototype before full pyramid crate |
 
 **Rules for [PROTO] modules:**
+
 1. Must replicate the standard's specification faithfully — no shortcuts
 2. Must have standalone tests (not dependent on caal-llm integration)
 3. Must be documented with the target hllset-next crate name
@@ -1899,7 +1921,7 @@ Phase C: CONTRIBUTE upstream to hllset-next
 ### 8.12 Dependency Policy
 
 | Dependency | Status | Policy |
-|------------|--------|--------|
+| ------------ | -------- | -------- |
 | `hllset-core` | `[IMPL]` usable | **Primary dependency.** All crates depend on this. |
 | `hllset-storage` | `[INACC]` path-blocked | Depend on the **trait**, not the crate. caal-llm defines its own `Storage` re-export that wraps hllset-next's trait once available. |
 | `hllset-storage-redis` | `[IMPL]` | **Production default.** Used via `caal-storage`. The only crate that imports this. |
@@ -1915,7 +1937,7 @@ Phase C: CONTRIBUTE upstream to hllset-next
 When hllset-next progresses, caal-llm upgrades:
 
 | When hllset-next... | caal-llm should... |
-|---------------------|-------------------|
+| --------------------- | ------------------- |
 | Resolves ipfrs-core path dependency | Switch from local [PROTO] to `hllset-ranks` and `hllset-storage` |
 | Implements full prefix taxonomy (o/r/d/n) | Adopt content-addressable D/R/N storage |
 | Ships temporal pyramid crate | Add temporal depth to consultation history |
@@ -2003,13 +2025,13 @@ the highest-TF tie-break is arbitrary. Jaccard drops to ~0.03.
 > Three valid initialization states:
 
 | State | Vocabulary source | TF values | When to use |
-|-------|------------------|-----------|-------------|
+| ------- | ------------------ | ----------- | ------------- |
 | **Cold start** | Empty | N/A | New system, no prior knowledge |
 | **Lattice-covered** | Vocabulary extracted from HLLSets already in the current lattice | From materialization TF | System with existing HLLSet corpus |
 | **Donor transfer** | Vocabulary from a donor system's LUT | Copied from donor TF | Deep knowledge transfer between systems |
 
 | State | Vocabulary source | TF values | Result |
-|-------|-----------------|-----------|--------|
+| ------- | ----------------- | ----------- | -------- |
 | **INVALID** | External vocabulary (e.g., tokenizer vocab) | Equal TF (= 0 or = 1) | Random materialization, Jaccard ~0.03 |
 
 ### Refinement of §5.5
