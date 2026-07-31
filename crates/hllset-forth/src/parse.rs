@@ -90,7 +90,40 @@ pub fn parse(source: &str) -> Result<Ast, ParseError> {
     }
 
     flush_buf(&mut buf, &mut words)?;
-    Ok(Ast::new(words))
+    Ok(group_colon_defs(words))
+}
+
+/// Post-process: detect `:` name ... `;` patterns and wrap as ColonDef.
+fn group_colon_defs(words: Vec<Word>) -> Ast {
+    let mut result = Vec::new();
+    let mut i = 0;
+    while i < words.len() {
+        // Check for `:` at current position
+        if let Word::Ident(ref col) = words[i] {
+            if col == ":" && i + 2 < words.len() {
+                if let Word::Ident(ref name) = words[i + 1] {
+                    // Find matching `;`
+                    let body_start = i + 2;
+                    if let Some(semi_pos) = words[body_start..]
+                        .iter()
+                        .position(|w| matches!(w, Word::Ident(s) if s == ";"))
+                    {
+                        let body_end = body_start + semi_pos;
+                        let body: Vec<Word> = words[body_start..body_end].to_vec();
+                        result.push(Word::ColonDef {
+                            name: name.clone(),
+                            body,
+                        });
+                        i = body_end + 1; // skip past `;`
+                        continue;
+                    }
+                }
+            }
+        }
+        result.push(words[i].clone());
+        i += 1;
+    }
+    Ast::new(result)
 }
 
 /// Flush the accumulated token buffer: try to parse as number, fall back to ident.
@@ -209,5 +242,18 @@ mod tests {
     #[test]
     fn test_unterminated_string() {
         assert!(parse(r#""hello"#).is_err());
+    }
+
+    #[test]
+    fn test_colon_definition() {
+        let ast = parse(r#": DOUBLE 2 * ;"#).unwrap();
+        assert_eq!(ast.words.len(), 1);
+        match &ast.words[0] {
+            Word::ColonDef { name, body } => {
+                assert_eq!(name, "DOUBLE");
+                assert_eq!(body.len(), 2); // 2, *
+            }
+            _ => panic!("expected ColonDef"),
+        }
     }
 }

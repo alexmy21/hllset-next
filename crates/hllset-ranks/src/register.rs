@@ -88,6 +88,76 @@ impl RegisterRank {
     }
 }
 
+/// Per-register TF ranking: compute rank of each register from a TFVec.
+///
+/// Maps the 32,768-entry TF vector down to 1,024 register-level values
+/// by summing (or max-pooling) the TF values within each register.
+///
+/// This bridges the TFVec wire format (§2.3) with the five-level rank
+/// algebra (§3.2), enabling register-level rank queries without needing
+/// token-level LUT access.
+pub struct TfRegisterRanker {
+    aggregator: Box<dyn RegisterRankAggregator>,
+}
+
+impl Default for TfRegisterRanker {
+    fn default() -> Self {
+        Self {
+            aggregator: Box::new(SumRegAggregator),
+        }
+    }
+}
+
+impl TfRegisterRanker {
+    /// Create with a specific aggregator.
+    pub fn new(aggregator: Box<dyn RegisterRankAggregator>) -> Self {
+        Self { aggregator }
+    }
+
+    /// Compute register ranks from a TF vector.
+    ///
+    /// For each of the 1,024 registers, aggregates TF values across all
+    /// 32 trailing-zero positions within that register. The aggregation
+    /// function (sum, max-pool, etc.) is chosen at construction time.
+    pub fn rank_all(&self, tf: &hllset_core::TFVec) -> Vec<RegisterRank> {
+        (0..1024u32)
+            .map(|reg| self.rank_register(tf, reg))
+            .collect()
+    }
+
+    /// Compute rank for a single register from the TF vector.
+    pub fn rank_register(&self, tf: &hllset_core::TFVec, register: u32) -> RegisterRank {
+        let base = (register * 32) as usize;
+        let bits: Vec<BitRank> = (0..32u32)
+            .map(|tz| {
+                let pos = base + tz as usize;
+                BitRank {
+                    register,
+                    tz,
+                    value: tf.get(pos) as Rank,
+                    token_count: 1,
+                }
+            })
+            .filter(|b| b.value > 0)
+            .collect();
+
+        let active_slots = bits.len() as u32;
+        RegisterRank {
+            register,
+            value: self.aggregator.aggregate(register, &bits),
+            active_slots,
+        }
+    }
+
+    /// Get the top-k registers by rank.
+    pub fn top_k(&self, tf: &hllset_core::TFVec, k: usize) -> Vec<RegisterRank> {
+        let mut ranks = self.rank_all(tf);
+        ranks.sort_by(|a, b| b.value.cmp(&a.value));
+        ranks.truncate(k);
+        ranks
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -37,10 +37,10 @@ fn main() {
         run_mesh_worker(worker_id);
         return;
     } else if args.len() >= 2 && args[1] == "--mesh-noether" {
-        let threshold: f64 = if args.len() > 2 {
-            args[2].parse().unwrap_or(0.1)
+        let threshold: i64 = if args.len() > 2 {
+            args[2].parse().unwrap_or(5)
         } else {
-            0.1
+            5
         };
         run_mesh_noether(threshold);
         return;
@@ -224,7 +224,7 @@ fn run_mesh_worker(worker_id: &str) {
     });
 }
 
-fn run_mesh_noether(threshold: f64) {
+fn run_mesh_noether(threshold: i64) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         use hllset_mesh::{InProcessBus, NoetherController};

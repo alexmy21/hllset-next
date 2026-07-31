@@ -238,6 +238,45 @@ fn compile_word(
         Word::Seq(_words) => {
             // Sequences not yet supported in compilation
         }
+        Word::ColonDef { name, body } => {
+            // Emit as a Lua function definition.
+            // The body is compiled inline at definition site;
+            // at call site, the name becomes a Lua function call.
+            lua.push_str(&format!("function {name}()\n"));
+            let mut body_stack: Vec<String> = Vec::new();
+            let mut body_counter = 0;
+            let mut body_values = std::collections::HashMap::new();
+            for w in body {
+                compile_word(
+                    w,
+                    lua,
+                    &mut body_stack,
+                    &mut body_counter,
+                    &mut body_values,
+                );
+            }
+            // Return the top of stack (or empty table)
+            if body_stack.is_empty() {
+                lua.push_str("  return {}\n");
+            } else if body_stack.len() == 1 {
+                lua.push_str(&format!("  return {}\n", body_stack[0]));
+            } else {
+                lua.push_str("  return {");
+                for (i, v) in body_stack.iter().enumerate() {
+                    if i > 0 {
+                        lua.push_str(", ");
+                    }
+                    lua.push_str(v);
+                }
+                lua.push_str("}\n");
+            }
+            lua.push_str("end\n");
+
+            // Push the function name onto the stack so it can be called
+            let v = new_var(counter);
+            lua.push_str(&format!("{v} = {name}()\n"));
+            stack.push(v);
+        }
     }
 }
 
@@ -300,5 +339,17 @@ mod tests {
         let ast = parse(r#""a" 1 INSCRIBE "b" 1 INSCRIBE BSS"#).unwrap();
         let lua = compile_to_lua(&ast);
         assert!(lua.contains("bss_inclusion"));
+    }
+
+    #[test]
+    fn test_colon_def_compile() {
+        let src = r#": GREET "hello world" ;"#;
+        let ast = parse(src).unwrap();
+        // Should have one ColonDef
+        assert_eq!(ast.words.len(), 1);
+        let lua = compile_to_lua(&ast);
+        assert!(lua.contains("function GREET()"));
+        assert!(lua.contains("hello world"));
+        assert!(lua.contains("end"));
     }
 }

@@ -180,6 +180,39 @@ impl DslRuntime {
         })?;
         hllset_table.set("gc", gc_fn)?;
 
+        // ── Temporal bindings ────────────────────────────────────────
+
+        let storage_lua = Rc::clone(&storage);
+        let get_tmp_fn = lua.create_function(move |_, key: String| {
+            storage_lua
+                .get_tmp(&key)
+                .map_err(|e| LuaError::external(e.to_string()))
+        })?;
+        hllset_table.set("get_tmp", get_tmp_fn)?;
+
+        let storage_lua = Rc::clone(&storage);
+        let put_tmp_fn = lua.create_function(
+            move |_, (key, val): (String, mlua::String)| {
+                let val_bytes = val.as_bytes();
+                storage_lua
+                    .put_tmp(&key, &val_bytes)
+                    .map_err(|e| LuaError::external(e.to_string()))
+            },
+        )?;
+        hllset_table.set("put_tmp", put_tmp_fn)?;
+
+        let storage_lua = Rc::clone(&storage);
+        let cas_tmp_fn = lua.create_function(
+            move |_, (key, old, new): (String, mlua::String, mlua::String)| {
+                let old_bytes = old.as_bytes();
+                let new_bytes = new.as_bytes();
+                storage_lua
+                    .cas_tmp(&key, &old_bytes, &new_bytes)
+                    .map_err(|e| LuaError::external(e.to_string()))
+            },
+        )?;
+        hllset_table.set("cas_tmp", cas_tmp_fn)?;
+
         lua.globals().set("hllset", hllset_table)?;
 
         Ok(Self {

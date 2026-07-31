@@ -382,7 +382,6 @@ pub fn materialize_debruijn(
             for token in tokens {
                 if let Some((prefix, suffix)) = split_at_nul(token) {
                     edges.push((prefix, suffix.clone(), token.clone()));
-                    edges.push((token.clone(), suffix, token.clone()));
                 }
             }
         }

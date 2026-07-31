@@ -13,7 +13,7 @@ impl HLLSet {
         let mut bytes = Vec::with_capacity(self.memory_usage());
         self.bitmap()
             .serialize_into(&mut bytes)
-            .unwrap_or_default();
+            .expect("serialize_into Vec<u8> is infallible");
         bytes
     }
 

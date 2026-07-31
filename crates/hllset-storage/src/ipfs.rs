@@ -54,22 +54,21 @@ impl IpfrsNativeStorage {
 }
 
 impl Storage for IpfrsNativeStorage {
-    fn store(&self, key: &str, data: &[u8]) -> Result<()> {
-        // Store raw bytes under the key
+    fn put(&self, key: &str, data: &[u8]) -> Result<()> {
         self.db
             .insert(key.as_bytes(), data)
             .map_err(|e| StorageError::Backend(format!("sled insert: {e}")))?;
         Ok(())
     }
 
-    fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.db
             .get(key.as_bytes())
             .map_err(|e| StorageError::Backend(format!("sled get: {e}")))
             .map(|opt| opt.map(|ivec| ivec.to_vec()))
     }
 
-    fn exists(&self, key: &str) -> Result<bool> {
+    fn has(&self, key: &str) -> Result<bool> {
         self.db
             .contains_key(key.as_bytes())
             .map_err(|e| StorageError::Backend(format!("sled contains_key: {e}")))

@@ -1,8 +1,12 @@
-//! Noether Controller — Rust-native replacement for ROS 2 `noether_controller.py`.
+//! Noether Controller — integer-rank-aligned flux monitor.
 //!
 //! Monitors the HLLSet lattice for drift (flux = new keys - evictions)
 //! and adjusts system parameters to maintain stability. Named after
 //! Emmy Noether's theorem linking symmetry to conservation.
+//!
+//! All arithmetic is integer-only, aligned with the five-level rank
+//! algebra (§3.2 of STANDARD.md). Flux is measured as signed i64 keys
+//! per tick with integer halving decay — no floating point.
 
 use crate::bus::MeshBus;
 use crate::Message;
@@ -11,26 +15,26 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
-/// Flux monitor — tracks key creation rate and detects drift.
+/// Flux monitor — tracks key creation/eviction rate and detects drift.
 pub struct NoetherController {
     bus: Arc<dyn MeshBus>,
     state: Arc<Mutex<ControllerState>>,
 }
 
 struct ControllerState {
-    flux: f64,
-    threshold: f64,
+    flux: i64,
+    threshold: i64,
     recent_keys: HashSet<String>,
     running: bool,
 }
 
 impl NoetherController {
-    /// Create a new Noether controller.
-    pub fn new(bus: Arc<dyn MeshBus>, threshold: f64) -> Self {
+    /// Create a new Noether controller with integer threshold.
+    pub fn new(bus: Arc<dyn MeshBus>, threshold: i64) -> Self {
         Self {
             bus,
             state: Arc::new(Mutex::new(ControllerState {
-                flux: 0.0,
+                flux: 0,
                 threshold,
                 recent_keys: HashSet::new(),
                 running: false,
@@ -60,7 +64,7 @@ impl NoetherController {
                 }
 
                 debug!(
-                    "Flux: {:.3} (threshold: {:.3}), keys tracked: {}",
+                    "Flux: {} (threshold: {}), keys tracked: {}",
                     s.flux,
                     s.threshold,
                     s.recent_keys.len()
@@ -68,14 +72,15 @@ impl NoetherController {
 
                 if s.flux.abs() > s.threshold {
                     warn!(
-                        "Flux drift detected: {:.3} > {:.3}. Adjusting parameters...",
+                        "Flux drift detected: {} > {}. Adjusting parameters...",
                         s.flux, s.threshold
                     );
                     // Future: call a service to adjust system parameters
                 }
 
-                // Decay flux
-                s.flux *= 0.9;
+                // Integer halving decay — equivalent to exponential decay
+                // but in pure integer space, aligned with rank algebra
+                s.flux /= 2;
             }
         });
 
@@ -96,12 +101,19 @@ impl NoetherController {
     pub async fn record_key(&self, key: &str) {
         let mut state = self.state.lock().await;
         if state.recent_keys.insert(key.to_string()) {
-            state.flux += 1.0;
+            state.flux += 1;
         }
     }
 
-    /// Get current flux value.
-    pub async fn flux(&self) -> f64 {
+    /// Record an evicted key (negative flux).
+    pub async fn record_eviction(&self, key: &str) {
+        let mut state = self.state.lock().await;
+        state.recent_keys.remove(key);
+        state.flux -= 1;
+    }
+
+    /// Get current flux value (integer).
+    pub async fn flux(&self) -> i64 {
         self.state.lock().await.flux
     }
 

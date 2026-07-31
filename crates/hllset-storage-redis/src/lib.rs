@@ -75,21 +75,21 @@ impl RedisStorage {
 }
 
 impl Storage for RedisStorage {
-    fn store(&self, key: &str, data: &[u8]) -> Result<()> {
+    fn put(&self, key: &str, data: &[u8]) -> Result<()> {
         self.conn
             .borrow_mut()
             .set(key, data)
             .map_err(|e| StorageError::Backend(format!("redis SET: {e}")))
     }
 
-    fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         self.conn
             .borrow_mut()
             .get(key)
             .map_err(|e| StorageError::Backend(format!("redis GET: {e}")))
     }
 
-    fn exists(&self, key: &str) -> Result<bool> {
+    fn has(&self, key: &str) -> Result<bool> {
         let exists: bool = self
             .conn
             .borrow_mut()

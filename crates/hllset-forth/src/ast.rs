@@ -14,6 +14,11 @@ pub enum Word {
     Ident(String),
     /// A sequence of words (for blocks, definitions).
     Seq(Vec<Word>),
+    /// A colon definition: `: NAME body... ;`
+    ColonDef {
+        name: String,
+        body: Vec<Word>,
+    },
 }
 
 /// A complete Forth program: a sequence of words.
@@ -76,6 +81,13 @@ impl std::fmt::Display for Word {
                     write!(f, "{} ", w)?;
                 }
                 write!(f, ")")
+            }
+            Word::ColonDef { name, body } => {
+                write!(f, ": {} ", name)?;
+                for w in body {
+                    write!(f, "{} ", w)?;
+                }
+                write!(f, ";")
             }
         }
     }

@@ -1522,75 +1522,125 @@ The current implementation (July 2026) has 5 crates:
 
 caal-llm depends on `hllset-core` only — no internal hllset-next dependencies.
 This was a deliberate choice to avoid the `ipfrs-core` path dependency problem.
-**Keep it this way until HLPP Phase 1 is complete** (see §8.4).
+**Keep it this way until HLPP Phase 1 is complete** (see §8.12).
 
-### 8.3 Redesign Principles
+### 8.3 Design Mandate
+
+caal-llm is not just "an application that works." It is the **reference
+application** for the HLLSet Algebra ecosystem. Every design decision in
+caal-llm must answer: "Does this demonstrate the best way to build an
+HLLSet Algebra application?"
+
+The mandate has five requirements:
+
+| # | Requirement | Consequence |
+|---|-------------|-------------|
+| **R1** | **Reference quality.** caal-llm demonstrates best practices in architecture, design, and development. Code that works is not enough — code must be exemplary. | Traits are minimal and well-documented. Crate boundaries are clean. Error handling is explicit. Tests demonstrate patterns for downstream consumers. |
+| **R2** | **Upstream-first prototyping.** When hllset-next lacks a module (e.g., temporal pyramid, bridge crate), caal-llm implements a local prototype, then contributes it upstream once proven. | caal-llm contains `[PROTO]`-marked modules that are candidates for extraction into hllset-next crates (§8.9). |
+| **R3** | **Modular and extensible.** caal-llm defines the standard for domain extensions. Any future domain (sensor data, DNA, audio) must plug in through the same trait boundaries. | Extension traits are first-class (§8.8). The I Ching domain is one implementation of the `Domain` trait — not a special case. |
+| **R4** | **Storage-agnostic with Redis default.** caal-llm works with any storage backend implementing the `Storage` trait. Redis is the practical default for users who want a real database. | Storage selection is configuration, not compilation. The architecture never couples to a specific backend (§8.7). |
+| **R5** | **Multi-backend ready.** The architecture anticipates new storage backends (S3, PostgreSQL, IPFS-native) as they become available in hllset-next. Adding a backend is implementing a trait. | The storage abstraction is a passthrough to hllset-next's `Storage` trait — no caal-llm-specific storage code (§8.7). |
+
+### 8.4 Redesign Principles
 
 1. **caal-llm is an application of hllset-next, not a fork.** It should not
    reimplement anything that hllset-next provides. If something is needed,
-   it goes in hllset-next first.
+   it goes in hllset-next first — through the upstream-first path (§8.9).
 
 2. **caal-llm depends only on `[IMPL]` capabilities.** Spec-level concepts
-   (temporal pyramid, Noether, lifecycles) remain as future extensions. The
-   POC can implement local equivalents (e.g., its own temporal tracking) but
-   must not couple to hllset-next's spec-level API.
+   (temporal pyramid, Noether, lifecycles) remain as future extensions. For
+   gaps in hllset-next, caal-llm prototypes under `[PROTO]` markers (§8.9),
+   then contributes upstream once stable.
 
 3. **Each universe has its own LUT, TF, and ranks.** The statistics constraint
    §5.5 applies: the CAAL universe and the I Ching sub-universe maintain
    independent statistics. The bridge transfers structure only.
 
 4. **Trait boundaries are the pattern.** Just as hllset-next separates
-   `Storage` behind a trait, caal-llm separates backends (CAAL ZH, I Ching,
-   future domains) behind trait boundaries that `caal-core` doesn't know about.
+   `Storage` behind a trait, caal-llm separates every extension point behind
+   a trait boundary. No module knows about the implementation details of
+   any other module — only the trait it satisfies.
 
-### 8.4 Recommended caal-llm Architecture
+5. **Storage is a configuration choice, not a compile-time decision.**
+   The application selects its backend at startup. Code above the storage
+   layer never imports a specific backend crate. Adding a new backend
+   requires zero changes to application logic.
+
+6. **Extensions are implementations of traits, not modifications of core.**
+   A new domain (e.g., English bridge, DNA analysis, sensor fusion) is a
+   new crate implementing `Domain` + `Tokenizer` + `Bridge`. It drops in.
+   Nothing in `caal-core` changes.
+
+### 8.5 Recommended caal-llm Architecture
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│                  caal-pipeline                      │
-│          (orchestration, not logic)                 │
-└──────┬──────────────────────────────────┬───────────┘
-       │                                  │
-       ▼                                  ▼
-┌──────────────┐                  ┌──────────────────┐
-│  caal-core   │                  │  caal-iching     │
-│  (domain-    │                  │  (I Ching as a   │
-│   agnostic)  │                  │   sub-universe)  │
-│              │                  │                  │
-│  TokenLUT    │                  │  Own LUT         │
-│  globals     │                  │  Own TF          │
-│  materialize │                  │  Own ranks       │
-│  ngram       │                  │  Hexagram R-link │
-│  retrieve    │                  │  matrix          │
-└──────┬───────┘                  └────────┬─────────┘
-       │                                   │
-       ▼                                   │
-┌──────────────┐                           │
-│   caal-zh    │                           │
-│  (CAAL       │                           │
-│   vocabulary)│                           │
-│              │                           │
-│  80K Chinese │                           │
-│  characters  │                           │
-└──────┬───────┘                           │
-       │                                   │
-       └───────────────┬───────────────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │  caal-py        │
-              │  (Python        │
-              │   bindings)     │
-              └─────────────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │  hllset-core    │
-              │  (external dep) │
-              └─────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                        caal-pipeline                             │
+│              (orchestration, not logic)                          │
+└────────┬─────────────────────────────────────────┬──────────────┘
+         │                                         │
+         ▼                                         ▼
+┌──────────────────┐                    ┌──────────────────────────┐
+│   caal-core      │                    │   caal-iching            │
+│   (domain-       │                    │   (I Ching sub-universe) │
+│    agnostic)     │                    │                          │
+│                  │                    │  Own LUT, TF, ranks      │
+│  TokenLUT        │                    │  Hexagram R-link matrix  │
+│  globals (G1-3)  │                    │  Consultation/navigation │
+│  materialize     │                    │  Compression→disambig    │
+│  ngram (1/2/3)   │                    │                          │
+│  retrieve (BSS)  │                    │  implements Domain trait │
+│  Bridge trait    │                    │                          │
+│  Rank trait      │                    │                          │
+│  Domain trait    │                    │                          │
+└──┬───────┬───────┘                    └──────────┬───────────────┘
+   │       │                                       │
+   │       └───────────────────────┐               │
+   ▼                               ▼               │
+┌──────────────┐          ┌──────────────────┐     │
+│   caal-zh    │          │  caal-*          │     │
+│  (CAAL Zh)   │          │  (future         │     │
+│              │          │   domains)       │     │
+│  80K Chinese │          │                  │     │
+│  characters  │          │  e.g. caal-en    │     │
+│              │          │       caal-dna   │     │
+│  implements  │          │       caal-audio │     │
+│  Domain      │          │                  │     │
+└──────┬───────┘          └────────┬─────────┘     │
+       │                           │               │
+       └───────────┬───────────────┴───────────────┘
+                   │
+                   ▼
+          ┌─────────────────────┐
+          │  Storage Abstraction│
+          │  (passthrough to    │
+          │   hllset Storage)   │
+          └──────────┬──────────┘
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+          ▼                     ▼
+   ┌──────────────┐      ┌──────────────┐
+   │ Redis        │      │ Memory /     │
+   │ (production  │      │ Sled / IPFS  │
+   │  default)    │      │ (dev/test)   │
+   └──────────────┘      └──────────────┘
+                     │
+                     ▼
+            ┌─────────────────┐
+            │  hllset-core    │
+            │  (external dep) │
+            └─────────────────┘
+                     │
+                     ▼
+            ┌─────────────────┐
+            │  caal-py        │
+            │  (Python        │
+            │   bindings)     │
+            └─────────────────┘
 ```
 
-### 8.5 Crate Responsibilities (Redesigned)
+### 8.6 Crate Responsibilities (Redesigned)
 
 #### caal-core (keep, refine)
 
@@ -1635,7 +1685,188 @@ This was a deliberate choice to avoid the `ipfrs-core` path dependency problem.
 - Expose caal-core, caal-zh, caal-iching to Python
 - Support notebook-driven experimentation
 
-### 8.6 What Must Change (Priority Order)
+### 8.7 Storage Abstraction Layer
+
+caal-llm does not implement storage. It delegates to hllset-next's `Storage`
+trait. The storage abstraction is a **passthrough** — a thin initializer that:
+
+1. Selects a backend at startup (Redis, Memory, Sled/IPFS-native)
+2. Wraps it in `Arc<dyn Storage>` for shared access across the application
+3. Provides it to all components that need persistence
+
+```rust
+// caal-storage (new crate, ~80 lines)
+pub fn init_storage(config: &StorageConfig) -> Result<Arc<dyn Storage>, CaalError> {
+    match config.backend {
+        Backend::Redis { url } => {
+            let redis = RedisStorage::connect(&url)?;
+            Ok(Arc::new(redis))
+        }
+        Backend::Memory => {
+            Ok(Arc::new(MemoryStorage::new()))
+        }
+        Backend::IpfrsNative { path } => {
+            let sled = IpfrsNative::open(&path)?;
+            Ok(Arc::new(sled))
+        }
+        // Backend::Postgres { ... } ← future, no code change needed
+        // Backend::S3 { ... }       ← future, no code change needed
+    }
+}
+```
+
+**Design rules for the storage layer:**
+
+| Rule | Rationale |
+|------|-----------|
+| Storage is selected by configuration (TOML, env, CLI flag), not by `#[cfg]` | Same binary works with any backend. No recompilation. |
+| Application code receives `Arc<dyn Storage>`, never a concrete type | Adding a backend = adding a variant to the enum + one match arm. Zero changes above this layer. |
+| The storage crate is the **only** crate that imports backend crates | `hllset-storage-redis` is imported only in `caal-storage`. If it's path-blocked, only this crate needs a workaround. |
+| Redis is the default for production use | Documented in quickstart. Memory backend is for testing. Sled is for single-node development. |
+
+**Backend selection guideline:**
+
+| Backend | When to use | Status in hllset-next |
+|---------|------------|----------------------|
+| `MemoryStorage` | Unit tests, CI, quick experimentation | `[IMPL]` |
+| `IpfrsNative` (sled) | Single-node development, local persistence | `[IMPL]` (path-blocked) |
+| `RedisStorage` | Production, multi-client access, real workloads | `[IMPL]` |
+| `PostgresStorage` | Enterprise with SQL query requirements | `[SPEC]` (future) |
+| `S3Storage` | Cloud-native, object storage | `[SPEC]` (future) |
+
+### 8.8 Extension Standards
+
+caal-llm defines three traits that every domain extension must implement. These
+are the **stable API contract** — they will not change when new domains are
+added, because they capture what is universal about any domain, not what is
+specific to Chinese or I Ching.
+
+#### The Domain Trait
+
+```rust
+/// A domain that can produce HLLSets from its native input format.
+/// Every domain (CAAL Zh, English, DNA, sensor data) implements this.
+pub trait Domain: Send + Sync {
+    /// Unique name for this domain (e.g., "caal-zh", "caal-en")
+    fn name(&self) -> &str;
+
+    /// Tokenize domain-native input into an HLLSet (Pass 1)
+    fn tokenize(&self, input: &str) -> Result<HLLSet, CaalError>;
+
+    /// The LUT for this domain — owns its own TF statistics
+    fn lut(&self) -> &TokenLUT;
+
+    /// Mutable access to LUT (for ingestion)
+    fn lut_mut(&mut self) -> &mut TokenLUT;
+
+    /// Global accumulators (G1, G2, G3) for this domain
+    fn globals(&self) -> &Globals;
+}
+```
+
+#### The Tokenizer Trait
+
+```rust
+/// How a domain converts raw text/bytes into tokens.
+/// Separated from Domain so that one domain can have multiple tokenizers.
+pub trait Tokenizer: Send + Sync {
+    /// Split input into tokens
+    fn tokenize(&self, input: &str) -> Vec<String>;
+
+    /// What n-gram sizes this tokenizer supports
+    fn ngram_sizes(&self) -> &[usize];
+}
+```
+
+#### The Bridge Trait
+
+```rust
+/// Re-representation: maps an HLLSet from a source domain into
+/// this domain's bit space (Pass 2).
+pub trait Bridge: Send + Sync {
+    /// Re-represent a source HLLSet into this domain's bit space.
+    /// The returned HLLSet is a citizen of this domain's lattice.
+    fn re_represent(&self, src: &HLLSet) -> Result<HLLSet, CaalError>;
+
+    /// Extract 3-gram structural fingerprint from any HLLSet
+    fn extract_3gram(&self, hllset: &HLLSet) -> Result<HLLSet, CaalError>;
+}
+```
+
+#### How Extensions Plug In
+
+A new domain (e.g., `caal-en` for English) is exactly:
+
+```text
+crates/caal-en/
+├── Cargo.toml          ← depends on caal-core (for traits), hllset-core (for HLLSet)
+├── src/
+│   └── lib.rs           ← ~100 lines:
+│       1. Define English tokenizer (space-split + BPE or word-level)
+│       2. Implement Domain trait (own LUT, own globals)
+│       3. Implement Bridge trait (Pass 2 re-representation)
+│       4. Register in caal-pipeline's domain registry
+└── tests/
+    └── integration.rs   ← BSS against known English HLLSets
+```
+
+**Registration is a one-line addition** in `caal-pipeline`:
+
+```rust
+// caal-pipeline/src/lib.rs
+let domains: Vec<Arc<dyn Domain>> = vec![
+    Arc::new(CaalZh::new()),
+    Arc::new(CaalEn::new()),       // ← added, nothing else changes
+    Arc::new(CaalIching::new()),
+];
+```
+
+The extension standard guarantees:
+- `caal-core` never imports `caal-en` (or any domain crate)
+- `caal-pipeline` only knows `Arc<dyn Domain>` — never a concrete type
+- New domains require zero changes to existing crates
+
+### 8.9 Upstream-First Prototype Path
+
+When hllset-next specifies a capability but hasn't implemented it (marked
+`[SPEC]` in Part VII), caal-llm follows a three-phase path:
+
+```
+Phase A: PROTOTYPE in caal-llm
+  │  Marked with #[doc = "[PROTO]"] on the module.
+  │  Implements the specified behavior from this standard.
+  │  Used by caal-llm internally. Not a public API commitment.
+  │
+  ▼
+Phase B: STABILIZE through usage
+  │  Used in real caal-llm workflows (notebooks, tests, pipelines).
+  │  API churn is expected. Breaking changes are cheap (single consumer).
+  │  Once the interface stabilizes and tests pass consistently →
+  │
+  ▼
+Phase C: CONTRIBUTE upstream to hllset-next
+  │  Extract the [PROTO] module into a new hllset-next crate.
+  │  caal-llm switches from local [PROTO] to upstream crate.
+  │  Mark the [SPEC] as [IMPL] in Part VII of this standard.
+```
+
+**Current [PROTO] candidates for caal-llm:**
+
+| Module | Maps to hllset-next crate | Priority | Rationale |
+|--------|--------------------------|----------|-----------|
+| `caal-core/src/bridge.rs` | `hllset-bridge` | P0 | Two-pass re-representation is fundamental; caal-llm needs it now |
+| `caal-core/src/rank.rs` | `hllset-ranks` (local subset) | P1 | Five-level rank algebra; currently path-blocked, so local prototype |
+| `caal-core/src/ngram.rs` (3-gram) | `hllset-dsl` extension | P2 | 3-gram structural fingerprinting for cross-domain matching |
+| `caal-pipeline/src/temporal.rs` | `hllset-temporal` | P3 | Per-session temporal tracking; prototype before full pyramid crate |
+
+**Rules for [PROTO] modules:**
+1. Must replicate the standard's specification faithfully — no shortcuts
+2. Must have standalone tests (not dependent on caal-llm integration)
+3. Must be documented with the target hllset-next crate name
+4. Must not be part of caal-llm's public API — `pub(crate)` visibility
+5. Extraction to hllset-next must not break caal-llm's tests
+
+### 8.10 What Must Change (Priority Order)
 
 | Priority | Change | Rationale |
 | ---------- | -------- | ----------- |
@@ -1648,42 +1879,49 @@ This was a deliberate choice to avoid the `ipfrs-core` path dependency problem.
 | **P3** | Move to full namespace prefixes (o:/h:/r:/d:/n:) | When hllset-core adds them |
 | **P3** | Implement fold views (v: prefix) for llms.txt | For self-describing codebase |
 
-### 8.7 What caal-llm Should NOT Do
+### 8.11 What caal-llm Should NOT Do
 
 - **Do not implement a temporal pyramid.** This is hllset-next's responsibility.
   Local temporal tracking (per-session) is acceptable as application logic.
 - **Do not reimplement ranks or derivatives.** Use hllset-ranks when the
-  ipfrs-core path dependency is resolved.
+  ipfrs-core path dependency is resolved. In the meantime, a local [PROTO]
+  implementation is acceptable (§8.9).
 - **Do not design around floating-point limitations.** The architectural
   direction is integer-only. caal-llm can use float BSS as a convenience
   but should not build core logic on float operations.
 - **Do not create a Forth dictionary in caal-llm.** The Forth dictionary is
   hllset-next's learning component. caal-llm's "learning" is the LUT TF
   accumulation and the bridge's structural matching — not rank reshuffling.
+- **Do not couple to a specific storage backend.** All storage access goes
+  through `Arc<dyn Storage>`. No module imports `RedisStorage` directly
+  except `caal-storage`.
 
-### 8.8 Dependency Policy
+### 8.12 Dependency Policy
 
 | Dependency | Status | Policy |
-| ------------ | -------- | -------- |
-| `hllset-core` | `[IMPL]` usable | Continue using. Primary dependency. |
-| `hllset-ranks` | `[IMPL]` but path-blocked | Wait for ipfrs-core fix. Use local rank logic in the meantime. |
-| `hllset-storage` | `[INACC]` path-blocked | Do not depend on. caal-llm manages its own storage via hllset-core types. |
+|------------|--------|--------|
+| `hllset-core` | `[IMPL]` usable | **Primary dependency.** All crates depend on this. |
+| `hllset-storage` | `[INACC]` path-blocked | Depend on the **trait**, not the crate. caal-llm defines its own `Storage` re-export that wraps hllset-next's trait once available. |
+| `hllset-storage-redis` | `[IMPL]` | **Production default.** Used via `caal-storage`. The only crate that imports this. |
+| `hllset-ranks` | `[IMPL]` but path-blocked | [PROTO] local implementation in `caal-core/src/rank.rs`. Switch to upstream when path is fixed. |
 | `hllset-mesh` | `[PART]` single-process | Not needed for caal-llm (single-process application). |
 | `hllset-forth` | `[PART]` parser only | Not needed for caal-llm. |
 | `hllset-dsl` | `[IMPL]` path-blocked | Do not depend on. |
-| `hllset-bridge` | `[SPEC]` not yet exists | caal-llm implements bridge logic locally until this crate exists. |
+| `hllset-bridge` | `[SPEC]` not yet exists | [PROTO] local implementation in `caal-core/src/bridge.rs`. Contribute upstream when stable (§8.9). |
+| `caal-storage` | **New crate** | Thin passthrough to hllset-next `Storage` backend. Only crate that imports concrete backend types. |
 
-### 8.9 Future Integration Points
+### 8.13 Future Integration Points
 
 When hllset-next progresses, caal-llm upgrades:
 
 | When hllset-next... | caal-llm should... |
-| --------------------- | ------------------- |
-| Resolves ipfrs-core path dependency | Switch to `hllset-ranks` for five-level algebra |
+|---------------------|-------------------|
+| Resolves ipfrs-core path dependency | Switch from local [PROTO] to `hllset-ranks` and `hllset-storage` |
 | Implements full prefix taxonomy (o/r/d/n) | Adopt content-addressable D/R/N storage |
 | Ships temporal pyramid crate | Add temporal depth to consultation history |
-| Ships `hllset-bridge` crate | Replace local bridge logic with standard implementation |
+| Ships `hllset-bridge` crate | Replace `caal-core/src/bridge.rs` [PROTO] with upstream |
 | Implements `l:` prefix + folder views | Ingest caal-llm's own source code for self-description |
+| Adds new storage backends (Postgres, S3) | Add variant to `Backend` enum in `caal-storage` — no other changes |
 
 ---
 
@@ -1747,3 +1985,58 @@ For developers moving from the old per-topic docs to this standard:
 | `IICA_STATISTICS_CONSTRAINT.md` | §5.5 |
 | `SELF_REPROGRAMMING_ARCHITECTURE.md` | Parts III, IV, VI, Appendix B |
 | `HLLSET_NEXT_REVIEW.md` | Part VII |
+
+---
+
+## Appendix D: LUT Initialization Constraint (Discovered July 28, 2026)
+
+### The Problem
+
+Loading a LUT with a large external vocabulary (e.g., a 128K BPE tokenizer vocabulary)
+where all tokens have equal TF = 0 or TF = 1 causes **random materialization**.
+Each HLLSet bit position maps to multiple tokens in the LUT, and with equal TFs,
+the highest-TF tie-break is arbitrary. Jaccard drops to ~0.03.
+
+### The Rule
+
+> **A LUT may only contain tokens whose accumulated TF reflects actual experience.**
+> Three valid initialization states:
+
+| State | Vocabulary source | TF values | When to use |
+|-------|------------------|-----------|-------------|
+| **Cold start** | Empty | N/A | New system, no prior knowledge |
+| **Lattice-covered** | Vocabulary extracted from HLLSets already in the current lattice | From materialization TF | System with existing HLLSet corpus |
+| **Donor transfer** | Vocabulary from a donor system's LUT | Copied from donor TF | Deep knowledge transfer between systems |
+
+| State | Vocabulary source | TF values | Result |
+|-------|-----------------|-----------|--------|
+| **INVALID** | External vocabulary (e.g., tokenizer vocab) | Equal TF (= 0 or = 1) | Random materialization, Jaccard ~0.03 |
+
+### Refinement of §5.5
+
+The original Statistics Constraint states: *"Statistics are not transferable between
+independent algebras."* This remains true for **arbitrary** transfer. However:
+
+- TF can be transferred **from a donor LUT** that has earned its statistics through
+  real experience. The donor LUT's TF distribution reflects actual token frequencies
+  in a real corpus — it is not arbitrary.
+- The constraint is not "TF cannot be transferred" but "TF must reflect experience."
+  Equal-TF initialization from an external vocabulary violates this because it
+  pretends all tokens are equally frequent, which is never true in any real corpus.
+- A donor LUT from a system that has processed real documents carries valid TF
+  distributions that meaningfully distinguish tokens at shared bit positions.
+
+### Practical implications for DeepSeek-OCR
+
+1. **Cold start:** Begin with an empty LUT. Process a training corpus of documents.
+   After ~50-100 pages, the LUT accumulates enough TF for accurate materialization.
+
+2. **Lattice-covered:** If the OCR system has previously processed documents
+   (stored as HLLSets), extract the vocabulary from those HLLSets by materializing
+   against the cold-start LUT. Use those tokens to seed the next session.
+
+3. **Donor transfer:** If another OCR system (or caal-llm) has a mature LUT with
+   real TF values, import that LUT directly. The TF distribution, earned through
+   real experience, provides valid disambiguation.
+
+4. **Never:** Load `tokenizer.json` vocabulary with TF = 1 for all tokens.

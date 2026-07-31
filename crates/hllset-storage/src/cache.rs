@@ -72,9 +72,9 @@ impl<S: Storage + Clone + 'static> CacheStorage<S> {
 }
 
 impl<S: Storage + Clone + 'static> Storage for CacheStorage<S> {
-    fn store(&self, key: &str, data: &[u8]) -> Result<()> {
+    fn put(&self, key: &str, data: &[u8]) -> Result<()> {
         // Store to inner (canonical)
-        self.inner.store(key, data)?;
+        self.inner.put(key, data)?;
 
         // Cache locally
         let mut cache = self.cache.borrow_mut();
@@ -98,7 +98,7 @@ impl<S: Storage + Clone + 'static> Storage for CacheStorage<S> {
         Ok(())
     }
 
-    fn load(&self, key: &str) -> Result<Option<Vec<u8>>> {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         // Check cache first
         let cached: Option<Vec<u8>> = {
             let cache = self.cache.borrow();
@@ -116,7 +116,7 @@ impl<S: Storage + Clone + 'static> Storage for CacheStorage<S> {
         }
 
         // Cache miss or TTL expired → fetch from inner
-        match self.inner.load(key)? {
+        match self.inner.get(key)? {
             Some(data) => {
                 // Cache the fresh data
                 let entry = CacheEntry {
@@ -138,12 +138,12 @@ impl<S: Storage + Clone + 'static> Storage for CacheStorage<S> {
         }
     }
 
-    fn exists(&self, key: &str) -> Result<bool> {
+    fn has(&self, key: &str) -> Result<bool> {
         // Check cache first (fast path)
         if self.cache.borrow().contains_key(key) {
             return Ok(true);
         }
-        self.inner.exists(key)
+        self.inner.has(key)
     }
 
     fn delete(&self, key: &str) -> Result<bool> {
