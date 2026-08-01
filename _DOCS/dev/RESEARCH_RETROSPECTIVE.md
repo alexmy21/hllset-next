@@ -1,8 +1,8 @@
 # HLLSet Algebra: A Research & Development Retrospective
 
-**From Theoretical Foundations to Production-Grade Lattice Computing**
-
-*Alex Mylnikov — July 31, 2026*
+>**From Theoretical Foundations to Production-Grade Lattice Computing**
+>
+>*Alex Mylnikov — July 31, 2026*
 
 ---
 
@@ -54,7 +54,7 @@ from streaming data (monotonic CRDT rank adjustment).
 The IICA gate is the foundational constraint of the entire framework:
 
 | Property | Definition | Consequence |
-|----------|------------|-------------|
+| ---------- | ------------ | ------------- |
 | **I**dempotency | f(x) = f(f(x)) | Same input → same output, always |
 | **I**mmutability | f(x) = y is fixed | No state, no mutation, no temporal dependency |
 | **C**ontent-**A**ddressability | If a = b then f(a) = f(b) | Deterministic; given content, you can find it again |
@@ -78,6 +78,7 @@ a declarative GPU kernel compiler that scripts how an 80k-dimensional "semantic
 swarm" should move, converge, and write its final state back as live feedback.
 
 **Key contributions:**
+
 - PSO guarantees → HLLSet stability proofs (formal convergence analysis)
 - Programmable trajectories: YAML → GPU sparse kernels (no CUDA code)
 - Recursive meta-swarm: swarm-of-swarms for higher-order abstraction
@@ -95,6 +96,7 @@ and enterprise-grade reliability while the HLLSet bitmasks lived in Redis string
 with Roaring Bitmap compression.
 
 **Key contributions:**
+
 - Redis-native HLLSet storage with SET/GET/BITOP operations
 - Multi-seed consensus for homogeneous (catalog) data materialization
 - Proved that a production database could serve as the storage layer without
@@ -111,6 +113,7 @@ storage and ROS 2 for pub/sub messaging, establishing the full HLPP (HLLSet Latt
 Persistence Protocol) in practice.
 
 **Key contributions:**
+
 - Forth → Lua compiler with INSCRIBE, UNION, INTERSECT, DIFF, BSS, CARD operations
 - SNOBOL-inspired composable pattern matching for tokenization
 - Tokenizer pipeline with n-gram support, boundary padding, and lowercase normalization
@@ -129,6 +132,7 @@ all infrastructure into a single-language Rust platform.
 **Key contributions (as of July 31, 2026):**
 
 *Core Algebra (hllset-core):*
+
 - HLLSet bitmap (1024×32 registers), union/intersection/difference/XOR
 - BSS (Bell State Similarity) morphisms: inclusion (τ), exclusion (ρ), morphism check
 - Content addressing with full namespace taxonomy: o/h/r/d/n/t/v/l/c/u + system:
@@ -137,6 +141,7 @@ all infrastructure into a single-language Rust platform.
 - Horvitz-Thompson cardinality estimator with monotonic guarantee
 
 *Storage Protocol (hllset-storage):*
+
 - 11-method Storage trait: CA ops (put/get/has/list/pin/unpin/gc/delete) + temporal
   ops (put_tmp/get_tmp/cas_tmp)
 - Three backends: MemoryStorage (dev/test, full temporal+CAS), IpfrsNativeStorage
@@ -144,6 +149,7 @@ all infrastructure into a single-language Rust platform.
 - Legacy `store`/`load`/`exists` aliases for backward compatibility
 
 *Rank Algebra (hllset-ranks):*
+
 - Five-level integer-only rank propagation: token → bit → register → HLLSet → compound
 - Pluggable aggregation functions at each level (Identity, Log2, Max, Sum, MaxPool, Degree)
 - Rank derivatives: ΔR (flux), Δ²R (acceleration), Noether steering
@@ -152,18 +158,21 @@ all infrastructure into a single-language Rust platform.
 - TfRegisterRanker: TF vector → 1,024 register-level ranks without TokenLUT
 
 *Temporal Pyramid (hllset-temporal):*
+
 - Configurable N-layer sliding window with automatic carry cascade
 - Default 7-layer pyramid (second → year), plus presets for HFT, realtime, document analysis
 - System state: bit-lossless union of all layers (H_system = ∪L_i)
 - Per-layer TF snapshots for time-lens queries against historical states
 
 *Universal Bridge (hllset-bridge):*
+
 - Two-pass ingestion: representation (domain → HLLSet) + re-representation (bits → bridge)
 - 3-gram structural fingerprinting for cross-domain matching
 - Spearman rank correlation (ρ ∈ [-1, 1]) with tie handling
 - Full bridge pipeline: re-represent → fingerprint → rank-correlate → top-K matches
 
 *DSL & Tooling:*
+
 - Lua runtime with full algebra + storage + temporal bindings
 - Forth DSL with colon-definition support (parsed into `Word::ColonDef`, lowered to Lua functions)
 - Interactive REPL, CLI evaluation (`-e`), file execution (`-f`), Forth compilation (`--forth`)
@@ -182,6 +191,7 @@ scenario questions, 4/5 correct (80% accuracy). No gradient descent. No weight m
 No GPU. No transformer. Just murmurhash3 + bitwise AND + popcount.
 
 **Key contributions:**
+
 - caal-core: domain-agnostic HLLSet algebra (LUT, globals, materialize, n-gram, retrieve)
 - caal-zh: Chinese tokenizer with 80K character vocabulary
 - caal-iching: I Ching sub-lattice with independent LUT (statistics constraint enforced)
@@ -247,7 +257,7 @@ perceptual dimensions. A swarm of N_r robots has D_P = N_r + 2. Zero new algebra
 ### Implementation Status Matrix
 
 | Layer | Status | Components |
-|-------|--------|------------|
+| ------- | -------- | ------------ |
 | IICA Foundation | ✅ Complete | Gate definition, composition theorem, hash builders, MurmurHash3/SHA-1 pipeline |
 | HLPP Protocol | ✅ Complete | Algebraic spec, Storage trait (11 methods), 3 backends, Lua/Forth bindings |
 | Core Concepts | ✅ Complete | HLLSet bitmap, TFVec, Commit, TF/Rank separation, five-level rank algebra |
@@ -260,11 +270,8 @@ perceptual dimensions. A swarm of N_r robots has D_P = N_r + 2. Zero new algebra
 | Distribution | ⬜ Partial | In-process mesh (done); distributed mesh (spec) |
 
 ### Test Suite
-**291 tests, 0 failures** across 13 crates.
 
-### Resolved Defects
-- ~~`to_bytes` silent data corruption~~ → replaced `unwrap_or_default()` with `.expect()`
-- ~~De Bruijn phantom edge construction~~ → removed bogus second edge
+**291 tests, 0 failures** across 13 crates.
 
 ---
 
@@ -273,6 +280,7 @@ perceptual dimensions. A swarm of N_r robots has D_P = N_r + 2. Zero new algebra
 ### 5.1 Why This Architecture Matters
 
 Three forces converged in 2026:
+
 1. **The GPU wall** — training runs cost hundreds of millions; edge inference requires
    lossy compression. The industry seeks architectures without matrix multiplication.
 2. **FPGAs are ready** — modern fabrics support the exact operations HLLSet Algebra
@@ -284,6 +292,7 @@ Three forces converged in 2026:
 ### 5.2 The Categorical Shift
 
 HLLSet Algebra represents a categorical shift from:
+
 - Token embeddings → content-addressed bitmasks
 - Gradient descent → rank rearrangement
 - GPU clusters → single FPGA chips
@@ -304,7 +313,7 @@ This is not an optimization — it is evidence of a different computational regi
 ## 6. Repository Map
 
 | # | Repository | Role | Primary Language |
-|---|-----------|------|-----------------|
+| --- | ----------- | ------ | ----------------- |
 | 1 | `sgs_icaisns` | Theoretical foundation: IICA gate specification | Python/Mathematical |
 | 2 | `hllset-swarm` | Swarm intelligence: HLLSet–PSO duality, GPU kernel compiler | Python |
 | 3 | `redis_hllset_algebra` | First operational algebra engine (Redis-backed) | Python/Redis |
@@ -345,4 +354,4 @@ This is not an optimization — it is evidence of a different computational regi
 5. Noether, E. "Invariante Variationsprobleme" (1918) — symmetry → conservation
 6. A. Mylnikov, ``HLLSet Theory: A Unified Framework for Probabilistic Knowledge Representation``, Advances in Science, Technology and Engineering Systems Journal, vol. 11, no. 2, pp. 12--16, 2026.
 7. A. Mylnikov, ``Self Generative Systems (SGS) and Its Integration with AI Models``. AISNS '24: Proceedings of the 2024 2nd International Conference on Artificial Intelligence, Systems and Network Security
-Pages 345 - 354 (https://doi.org/10.1145/3714334.3714392)
+Pages 345 - 354 (<https://doi.org/10.1145/3714334.3714392>)
