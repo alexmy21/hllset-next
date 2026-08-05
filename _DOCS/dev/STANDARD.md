@@ -26,6 +26,7 @@ The standard is organized in **conceptual layers**, each building on the previou
 | VI | Self-Ingestion | How does the system observe its own development? |
 | VII | Status Matrix | What is actually implemented in code? |
 | VIII | caal-llm Guide | How to build a reference application on this foundation? |
+| IX | [UM]-Net | How do agents form self-organizing directed graphs without coordination? |
 
 Every concept carries a **status marker**:
 
@@ -35,6 +36,7 @@ Every concept carries a **status marker**:
 | `[PART]` | Partially implemented; some pieces exist, some are stubs |
 | `[SPEC]` | Fully specified in this standard; no hllset-next implementation yet |
 | `[INACC]` | Inaccessible to caal-llm — depends on hllset-next crates that aren't usable yet (e.g., path-dependency blocked) |
+| `[SUPERSEDED]` | Previously implemented or specified; now replaced by a cleaner approach documented in this standard |
 
 Where the predecessor documents disagreed, this standard **resolves** the
 disagreement with explicit reasoning (marked **Resolution:**).
@@ -870,27 +872,43 @@ t=3: BSS(mixed_stream, reference) ≈ 0.8   # converging toward understanding
 
 ### 4.5 Fire-and-Forget Communication
 
-`[IMPL]` at the conceptual level; `[PART]` in code (mesh is single-process).
+`[IMPL]` Validated in hllset-cortex [UM]-net (Notebook 04).
+See Part IX for the complete specification.
 
-Each state sends output to exactly two destinations — no coordination:
+The [UM]-net generalizes the original fire-and-forget model:
+each `[UM]` agent fires output HLLSets to downstream agents — no
+acknowledgment, no handshake, no retry.
 
 ```text
-Window W(t) = { S0(now), S1, S2, S3, S4(deepest) }
-                  |      |    |   |   |
-                  v      v    v   v   v
-          [ MATERIALIZER ] ← collects ALL outputs
-               |
-          S0 → S1 → S2 → S3 → S4
-          (aggregation chain, lossy OK)
+[UM_A] ──→ [UM_C] ──→ [E₁]
+    │         ↑
+    └──→ [UM_B] ──→ [E₂]
+
+fire-and-forget edges: no coordination, no consensus, no orchestration
 ```
+
+**Why this works (IICA guarantees):**
+
+| Property | Consequence |
+| ---------- | ------------ |
+| Idempotent | Duplicate messages → same HLLSet → union no-op |
+| Immutable | No version conflicts — HLLSets never change |
+| Content-Addressed | Messages self-identify via SHA-1 key |
+| Union is CRDT | Merge at confluence nodes without consensus |
+| Commutative | A ∪ B = B ∪ A — arrival order irrelevant |
+| Associative | Any merge topology converges to same result |
 
 **Key properties:**
 
-- Each state Si sends to the materializer (fire-and-forget, always succeeds — content-addressed)
-- Each state Si sends to Si+1 for aggregation (lossy tolerated)
-- Si+1 may miss Si's output — the materializer still received it directly
-- The materializer eventually has the complete picture via union
+- Each `[UM]` fires output to its downstream neighbors — no ACK needed
+- If a message is lost: receiver's output is incomplete, but eventual union recovers
+- If a message is duplicated: second delivery is a no-op (idempotent)
+- At confluence nodes: incoming HLLSets merge via union (CRDT)
+- The materializer eventually has the complete picture via monotonic union
 - Possible because HLLSets are idempotent, content-addressed, and CRDT-mergeable
+
+**Supersedes:** ROS 2 pub/sub, hllset-mesh broadcast bus, and swarm PSO
+dynamics. The algebra IS the protocol — no external infrastructure needed.
 
 ### 4.6 The Noether Controller
 
@@ -1444,8 +1462,9 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 | Concept | Status | Crate(s) | Notes |
 | --------- | -------- | ---------- | ------- |
 | Evolution equation H(t) | `[IMPL]` | — | Conceptual; used across codebase |
-| Fire-and-forget model | `[PART]` | hllset-mesh | Single-process broadcast bus; not distributed |
-| Noether controller | `[IMPL]` | hllset-mesh | Integer-only flux with halving decay (rank-algebra aligned) |
+| Fire-and-forget model | `[IMPL]` | hllset-cortex notebooks | Validated DAG Agent Network (Notebook 04). Supersedes hllset-mesh. See Part IX. |
+| Noether controller | `[IMPL]` | hllset-mesh | Integer-only flux with halving decay (rank-algebra aligned). Preserved; the Noether invariant applies to DAG-net convergence. |
+| [UM]-net (agent graph) | `[IMPL]` | hllset-cortex notebooks | Validated in 02/03/04 notebooks. Formal spec in Part IX. |
 | System lifecycle | `[SPEC]` | — | Specified, not implemented |
 | Holographic memory | `[IMPL]` | — | Conceptual; not a separate crate |
 | Actuation (DeBruijn) | `[IMPL]` | hllset-dsl | Greedy DFS with 1000-step cap; edge construction fixed |
@@ -1463,13 +1482,14 @@ state in hllset-next. Based on the `HLLSET_NEXT_REVIEW.md` audit (July 21, 2026)
 | SNOBOL-inspired Pattern | `[IMPL]` | hllset-dsl | Composable pattern matching |
 | Tokenizer pipeline | `[IMPL]` | hllset-dsl | n-gram tokenization |
 
-### 7.7 Mesh / Distribution
+### 7.7 Mesh / Distribution — Superseded by [UM]-net (Part IX)
 
 | Concept | Status | Crate(s) | Notes |
 | --------- | -------- | ---------- | ------- |
-| In-process mesh (broadcast) | `[PART]` | hllset-mesh | tokio broadcast; each CLI creates own bus |
-| Distributed mesh | `[SPEC]` | — | Not implemented |
-| Mesh tests | `[PART]` | — | Zero tests for hllset-mesh and hllset-cli |
+| In-process mesh (broadcast) | `[SUPERSEDED]` | hllset-mesh | Replaced by DAG topological execution (fire-and-forget edges, CRDT merge) |
+| Distributed mesh | `[SUPERSEDED]` | — | Replaced by [UM]-net — no bus, no discovery, no transport layer needed |
+| Mesh tests | `[SUPERSEDED]` | — | Superseded by hllset-cortex notebook 04 validation |
+| [UM]-net (agent graph) | `[IMPL]` | hllset-cortex notebooks | Validated in notebooks 02/03/04. Formal spec in Part IX. |
 
 ### 7.8 Bridge
 
@@ -1917,6 +1937,10 @@ Phase C: CONTRIBUTE upstream to hllset-next
 - **Do not couple to a specific storage backend.** All storage access goes
   through `Arc<dyn Storage>`. No module imports `RedisStorage` directly
   except `caal-storage`.
+- **Do not use hllset-mesh for communication.** The DAG Agent Network
+  (Part IX) is the correct architecture for multi-agent HLLSet communication.
+  hllset-mesh is superseded. caal-llm agents communicate via DAG edges with
+  fire-and-forget HLLSet passing and CRDT merge at confluence nodes.
 
 ### 8.12 Dependency Policy
 
@@ -1926,7 +1950,7 @@ Phase C: CONTRIBUTE upstream to hllset-next
 | `hllset-storage` | `[INACC]` path-blocked | Depend on the **trait**, not the crate. caal-llm defines its own `Storage` re-export that wraps hllset-next's trait once available. |
 | `hllset-storage-redis` | `[IMPL]` | **Production default.** Used via `caal-storage`. The only crate that imports this. |
 | `hllset-ranks` | `[IMPL]` but path-blocked | [PROTO] local implementation in `caal-core/src/rank.rs`. Switch to upstream when path is fixed. |
-| `hllset-mesh` | `[PART]` single-process | Not needed for caal-llm (single-process application). |
+| `hllset-mesh` | `[SUPERSEDED]` | Replaced by DAG Agent Network (Part IX). Do not use for new development. |
 | `hllset-forth` | `[PART]` parser only | Not needed for caal-llm. |
 | `hllset-dsl` | `[IMPL]` path-blocked | Do not depend on. |
 | `hllset-bridge` | `[SPEC]` not yet exists | [PROTO] local implementation in `caal-core/src/bridge.rs`. Contribute upstream when stable (§8.9). |
@@ -1944,6 +1968,299 @@ When hllset-next progresses, caal-llm upgrades:
 | Ships `hllset-bridge` crate | Replace `caal-core/src/bridge.rs` [PROTO] with upstream |
 | Implements `l:` prefix + folder views | Ingest caal-llm's own source code for self-description |
 | Adds new storage backends (Postgres, S3) | Add variant to `Backend` enum in `caal-storage` — no other changes |
+
+---
+
+## Part IX: [UM]-Net — Directed Graph Agent Architecture
+
+### 9.1 The [UM] Agent
+
+`[IMPL]` Validated in hllset-cortex notebooks 02/03/04
+(`/home/alexmy/SGS/DeepSeek-OCR/hllset_cortex/notebooks/`).
+
+A `[UM]` agent is the unified model (Part VIII with 3-LUT architecture,
+Part V bridge) treated as an autonomous processing node:
+
+```text
+Agent = (name, lut_1g, lut_2g, lut_3g, gate, domain)
+
+where:
+  lut_1g  = 1-gram TokenLut (seeded with domain vocabulary, open for growth)
+  lut_2g  = 2-gram TokenLut (dynamic, populated during ingestion)
+  lut_3g  = 3-gram TokenLut (dynamic, populated during ingestion)
+  gate    = TFvec/G1 HLLSet (integer replica of 1-gram union)
+  domain  = label for the vocabulary domain (e.g. "chinese", "iching", "driving")
+```
+
+**Agent lifecycle:**
+
+1. **Birth:** Seed with domain vocabulary → `seed_vocabulary(texts)`
+2. **Life:** Receive HLLSets from upstream, process independently, fire downstream
+3. **Learning:** TF accumulates monotonically in all three LUTs (CRDT)
+4. **Death:** Agent can be replaced; its LUT state can be donor-transferred
+
+**Shared storage, per-agent interpretation.** All HLLSets share the same
+1024×32 bit-vector wire format (§2.3) and can live in a single
+content-addressed store (IPFS, Redis, sled — per Part II). The same
+HLLSet bit-vector materializes differently depending on which agent's
+LUT you query: bit position 314 hashes to "车" via Agent A's LUT and
+"元" via Agent B's LUT. This is the statistics constraint (§5.5):
+**structure is transferable** (HLLSets stored once, shared by all agents),
+**interpretation is not** (each agent maintains its own compact LUT with
+domain-specific TF). For a network of millions of agents, a single IPFS
+store eliminates massive redundancy — every agent sees the same HLLSets,
+each derives its own meaning.
+
+**Agent.process(encodings: List[str]) → message:**
+
+The agent receives **materialized encodings** from upstream — not HLLSets.
+HLLSets are the internal bit-level machinery within each agent; what flows
+between agents is the disambiguated, ordered encoding collection produced
+by the upstream agent's full pipeline.
+
+```text
+1. Re-tokenize:     tokens = tokenize(encodings)         (n-gram encoding)
+2. Hash → HLLSet:   h_raw = murmurhash3(tokens)          (internal: bit-vector)
+3. Gate filter:     h_gated = h_raw ∩ gate               (internal: vocabulary filter)
+4. Materialize:     mat_n = materialize(h_gated, lut_n)  (internal: LUT lookup)
+5. Cross-validate:  score(c) = TF_1g(c) + supp_2g(c)·0.5 + supp_3g(c)·0.25
+6. De Bruijn:       ordered = eulerian_path(bigram_graph) (internal: order restoration)
+7. Fire:            return {encodings: ordered, hllset_key, agent_name, ...}
+```
+
+**Why encodings, not HLLSets, flow between agents:**
+
+| Reason | Explanation |
+| -------- | ------------ |
+| HLLSets are lossy | Multiple tokens collide at the same bit position; passing the bit-vector discards the disambiguation the agent just performed |
+| Vocabulary narrowing | Each HLLSet intersection with a gate removes bits; passing HLLSets would compound this loss at each hop |
+| Encodings preserve result | The materialized encoding collection is the full, disambiguated, ordered output — nothing lost |
+| Real tokens are outside | Per hllset-cortex DESIGN.md: agents never see real tokens (words, characters) — only encoding IDs. The [UM]-net operates on encodings end-to-end |
+| HLLSets are internal | Bit-vectors are the agent's scratchpad — the LUT, the gate, the cross-validation all operate on bits. The output is encodings |
+
+**HLLSets in shared storage.** The HLLSets produced internally are
+content-addressed and persisted in the shared store (IPFS, per §9.1)
+for recovery, lattice queries, temporal pyramid snapshots, and audit.
+They are NOT the inter-agent message format.
+
+### 9.2 Graph Topology
+
+`[IMPL]` A `[UM]`-net is a directed graph `G = (A, E)` where:
+
+- **A** = set of `[UM]` agents (vertices)
+- **E** ⊆ A × A = fire-and-forget edges (directed)
+
+**Edges carry materialized encoding collections**, not HLLSets.
+Each edge (a, a') means: agent a fires its ordered encoding output
+to agent a', which re-tokenizes them into its own HLLSet internally.
+
+**Cycles are not prohibited.** A loop a → ... → a is a recurrent connection
+resolved by temporal separation:
+
+```text
+encodings_outₐ(t) → ... → encodings_inₐ(t + k)
+
+where k = loop latency (number of ingestion steps around the cycle)
+```
+
+Each pass through the cycle produces a *new observation at a later time*,
+not a re-entry of the same data. The ingestion step (perceptron) creates
+the temporal separation — what comes back is `in(t+k)`, a different HLLSet
+at a different moment. The evolution equation (§4.1) already captures this:
+`H(t) = H(S(t), H(t-1), D(t-1), R(t-1), N(t))`.
+
+**Sources** = agents with no incoming edges — entry points for `[E]` environments.
+**Sinks** = agents with no outgoing edges — exit points feeding back to `[E]`.
+
+```text
+G = (A, E) where A = {a₁, a₂, ..., aₙ}, E ⊆ A × A
+
+Sources(G) = {a ∈ A | in-degree(a) = 0}    ← entry points
+Sinks(G)   = {a ∈ A | out-degree(a) = 0}   ← exit points
+```
+
+**Multiple `[E]` environments** are first-class:
+
+```text
+[E₁: sensor]  ──→ [a₁] ──→ [a₃] ──→ [E₃: actuator]
+                ↗   │           ↑
+[E₂: query]  ──┘    └──→ [a₂] ──┘
+                             │
+                        [E₄: monitor]
+
+cycles are resolved by time: out(t) feeds back as in(t+k)
+```
+
+### 9.3 Execution Semantics
+
+`[IMPL]` Execution proceeds in waves:
+
+```text
+Wave 0: Sources receive input from environments [E]
+Wave t: Each agent fires when it has received input on all edges
+        that have fired in the current wave
+Merge:  Multiple incoming messages at agent a → union of all input HLLSets
+Fire:   Agent processes merged HLLSet → fires output to all downstream agents
+Cycle:  Loopback edges deliver out(t) as in(t+k) where k ≥ 1 wave
+```
+
+**At confluence nodes** (multiple incoming edges), the agent merges all
+incoming HLLSets via union:
+
+```text
+H_merged = ⋃{hᵢ | hᵢ ∈ inbox(a, t)}
+```
+
+**Cycle resolution.** An edge (a, a') where a' can reach a creates a cycle.
+The loop latency k is the number of wave steps around the cycle. The
+temporal pyramid (§4.2) provides the mechanism: loopback output enters at
+L0 of the receiving agent's temporal window, percolates upward through
+L1→L6, and feeds back as context in subsequent waves. The same HLLSet
+never re-enters the same agent at the same time — time differentiates
+what would otherwise be a logical contradiction.
+
+Union is CRDT (§9.4). No coordination needed. Arrival order irrelevant.
+Duplicate messages are no-ops.
+
+### 9.4 CRDT Merge Theorems
+
+`[IMPL]` Validated in notebook 04. The following properties hold for all
+confluence nodes:
+
+| Theorem | Statement | IICA basis |
+| --------- | ----------- | ------------ |
+| **Idempotence** | merge(H, H) = H | Content-addressing → same HLLSet |
+| **Commutativity** | H₁ ∪ H₂ = H₂ ∪ H₁ | Union is bitwise OR — order-independent |
+| **Associativity** | (H₁ ∪ H₂) ∪ H₃ = H₁ ∪ (H₂ ∪ H₃) | Union is bitwise OR — grouping-independent |
+| **Monotonicity** | popcount(H₁) ≤ popcount(H₁ ∪ H₂) | Union only sets bits, never clears |
+
+**Proof sketch:** HLLSet union is bitwise OR across 1,024 × 32 registers.
+OR is idempotent (x ∨ x = x), commutative (x ∨ y = y ∨ x), and associative
+((x ∨ y) ∨ z = x ∨ (y ∨ z)). Therefore HLLSet union is a state-based CRDT
+with monotonic convergence.
+
+**Convergence guarantee:** For any directed graph topology (including cycles,
+resolved by temporal separation per §9.2–§9.3), any arrival order of
+messages, and any pattern of duplicates or losses, the set of bits at
+each confluence node monotonically approaches the union of all messages
+sent to it. The lattice converges without consensus.
+
+### 9.5 Fire-and-Forget Robustness
+
+`[IMPL]` The IICA properties handle all communication failure modes:
+
+| Failure | Consequence | Recovery |
+| --------- | ------------ | ---------- |
+| **Message lost** | Receiver missing sender's bits | Bits recovered when message eventually arrives (or retransmitted) |
+| **Message duplicated** | Same HLLSet arrives twice | Second delivery is no-op (idempotent union) |
+| **Messages out of order** | A before B vs B before A | Same result (commutative union) |
+| **Agent crash** | Agent's LUT state lost | Recovered from donor transfer or lattice-covered restart (§5.5, App D) |
+| **Partition** | Sub-graphs process independently | Rejoin via union — bits from both sides preserved |
+
+**No infrastructure needed:** No message broker. No consensus protocol.
+No sequence numbers. No retry queues. No distributed transactions.
+The algebra handles it all.
+
+### 9.6 What This Supersedes
+
+`[SUPERSEDED]` The [UM]-net makes three previous communication
+approaches obsolete:
+
+| Approach | Superseded by |
+| ---------- | ------------- |
+| **ROS 2 pub/sub** | Graph edges — agents communicate directly via HLLSets; no topics, no discovery, no XML |
+| **hllset-mesh broadcast bus** | Wave execution — no bus, no channels, no subscribers; the graph IS the routing |
+| **Swarm PSO dynamics** | Rank-based graph routing — agent specialization via gates; relevance via BSS, not particle velocity |
+
+All three were attempts to impose external communication patterns
+onto an algebra that already contained its own communication model.
+The [UM]-net removes this impedance mismatch.
+
+### 9.7 Relationship to Self-Ingestion
+
+`[SPEC]` Per §6.1, the codebase itself becomes a directed graph of agents:
+
+```text
+git commit → [tokenizer] → [ranks] → [temporal] → [bridge] → llms.txt update
+                  │                       │
+                  └──→ [storage] ←────────┘
+```
+
+Each crate implements the Agent trait. The graph topology is defined by
+the crate dependency graph. Every git commit triggers wave execution
+through the graph. The output feeds back as `llms.txt`
+annotations and folder views — the codebase observing itself through
+its own algebra.
+
+### 9.8 Implementation Status
+
+| Concept | Status | Location | Notes |
+| --------- | -------- | ---------- | ------- |
+| Agent definition | `[IMPL]` | hllset-cortex/notebooks/04 | Python `Agent` class with 3-LUT + gate |
+| Graph topology | `[IMPL]` | hllset-cortex/notebooks/04 | `AgentDAG` with wave-level execution |
+| Cycle resolution | `[IMPL]` | hllset-cortex/notebooks/03 | Feedback convergence demonstrated (fixed points) |
+| CRDT merge | `[IMPL]` | hllset-cortex/notebooks/04 | All four merge theorems verified |
+| Fire-and-forget robustness | `[IMPL]` | hllset-cortex/notebooks/04 | Duplicates, loss, ordering all handled |
+| Multi-environment | `[IMPL]` | hllset-cortex/notebooks/04 | Two [E] inputs → graph → two [E] outputs |
+| Cross-domain bridge | `[IMPL]` | hllset-cortex/notebooks/04 | Chinese→I Ching→Chinese bridge in graph |
+| Ensemble voting | `[IMPL]` | hllset-cortex/notebooks/04 | Multi-gate voting via union merge |
+| Rust Agent trait | `[SPEC]` | hllset-next (future) | `trait Agent { fn process(&self, h: &HLLSet) -> HLLSet; }` |
+| Rust graph executor | `[SPEC]` | hllset-next (future) | Wave scheduler with CRDT merge + cycle support |
+| Self-ingestion graph | `[SPEC]` | hllset-next (future) | Codebase as directed graph per §6.1 + §9.7 |
+
+### 9.9 Relationship to Other Parts
+
+| Part | Relationship |
+| ------ | ------------- |
+| Part I (IICA) | IICA composition theorem (§1.3) guarantees the entire graph is IICA |
+| Part III (TF/Rank) | Each agent has independent TF and rank — statistics constraint §5.5 enforced |
+| Part IV (Architecture) | §4.5 fire-and-forget is the communication model; §4.2 Noether invariant guarantees graph convergence; §4.1 evolution equation captures recurrent cycles |
+| Part V (Bridge) | Cross-domain agents implement the bridge pattern; graph edges make bridges composable |
+| Part VI (Self-Ingestion) | §9.7 — the codebase as a self-observing directed graph |
+| Part VIII (caal-llm) | caal-llm upgrades from single-app to graph of domain agents |
+
+### 9.10 Immersion Learning: Zero-Shot Agent Integration
+
+ All agents share the same encoding vocabulary — the encoding IDs
+that flow on graph edges. A new agent dropped into the network learns to
+"speak" simply by receiving encodings, without explicit training.
+
+**Mechanism:**
+
+1. **Cold start.** New agent joins with empty LUTs (Appendix D).
+2. **Listening.** Receives encoding streams from upstream. Each encoding
+   recorded into LUTs — TF accumulates monotonically.
+3. **Emergence.** After ~50-100 messages, sufficient TF distribution for
+   coherent materialization.
+4. **Fluency.** LUT TF converges to match the network's encoding
+   distribution. The agent now speaks the same language.
+
+**No explicit training. No labeled data. No gradient descent.**
+The agent learns by listening. The network IS the training corpus.
+
+**Why this works.** All agents use the same encoding format. Agent A's
+output encoding means the same thing to Agent B as to Agent C. The
+vocabulary is universal within the [UM]-net — what differs is each
+agent's domain-specific TF distribution and gate filter. A new agent
+starts with no gate bias and no TF, absorbing the network's distribution
+passively — like a child acquiring language through immersion.
+
+This is the lattice-covered initialization path (Appendix D) generalized:
+the "existing HLLSet corpus" is the live encoding stream from the
+network itself. The same mechanism that makes the graph coordination-free
+also makes it self-educating. Every message is a teaching signal.
+
+**Ashby's Law foundation.** Each agent encodes the same incoming encoding
+through its own hash function — `tid18308` lands at bit position
+`(reg=314, tz=5)` in Agent A and `(reg=891, tz=2)` in Agent B. This
+diversity creates a **convolution of representations** across the graph.
+Ashby's Law of Requisite Variety is satisfied because the network's total
+variety (union of all LUT representations) exceeds any single agent's
+variety. The DAG distributes variety; confluence recombines it via CRDT
+union. No central coordination needed — variety emerges from independent
+hash mappings across the graph.
+network itself. The same mechanism that makes the graph coordination-free
+also makes it self-educating. Every message is a teaching signal.
 
 ---
 

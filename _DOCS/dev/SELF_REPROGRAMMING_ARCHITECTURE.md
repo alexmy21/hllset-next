@@ -2421,6 +2421,236 @@ See also: `_DOCS/dev/CAAL_ICHING_ARCHITECTURE.md`,
 
 ---
 
+## 23. [UM]-Net — Directed Graph Agent Network
+
+> **Date:** August 4, 2026
+> **Status:** Discovered and validated. Formal spec in STANDARD.md Part IX.
+> **Notebooks:** `hllset_cortex/notebooks/02_caal_cortex_unification.ipynb`,
+>   `03_recursive_iica_chain.ipynb`, `04_dag_agent_network.ipynb`
+
+### The Discovery
+
+Three previous approaches to multi-agent HLLSet communication were explored
+and found wanting:
+
+| Approach | Mechanism | Why it felt unnatural |
+|----------|-----------|----------------------|
+| ROS 2 | External pub/sub (Go daemon, Python, XML) | Topics, types, QoS — HLLSets self-identify by content, not by topic |
+| hllset-mesh | Tokio broadcast bus | Centralized channel — HLLSets don't need a bus, any agent can receive any HLLSet |
+| Swarm (PSO) | Particle dynamics mapped over | Velocity, position — HLLSets compose through union, not spatial movement |
+
+Each imposed an **external** communication pattern onto the algebra. The
+mismatch was structural: these are message-passing frameworks, but HLLSet
+communication is not message-passing — it's **content-addressed bitmask
+composition**.
+
+### The [UM]-Net
+
+The breakthrough came from treating the unified model `[UM]` (3-LUT, gate
+filter, cross-validate, De Bruijn) as a composable building block and
+connecting agents in a directed graph:
+
+```text
+[E₁] ──encodings──→ [UM_A] ──encodings──→ [UM_C] ──encodings──→ [E₃]
+                         │                  ↑
+[E₂] ──encodings──→ [UM_B] ──encodings──────┘
+
+       fire-and-forget edges carry materialized encoding collections
+       multiple environments on both sides
+```
+
+Each `[UM]` agent is autonomous: owns its 3-LUT system and gate filter,
+receives **materialized encodings** from upstream, re-tokenizes them into
+its internal HLLSet, processes independently, and fires its own materialized
+encodings downstream. No shared LUT, no coordination.
+
+**What flows between agents: encodings, not HLLSets.** HLLSets are the
+agent's internal bit-level scratchpad — the gate, the LUT lookup, the
+cross-validation all operate on bits. But passing HLLSets between agents
+would discard the disambiguation the upstream agent just performed (multiple
+tokens collide at the same bit position). Materialized encodings preserve
+the full ordered result. This also respects the black-box principle: real
+tokens (words, characters) are outside the [UM]-net — agents only see
+encoding IDs.
+
+**Shared storage, per-agent interpretation.** The HLLSets produced internally
+are content-addressed and persisted in a single shared store (IPFS, Redis,
+sled) for recovery, lattice queries, and temporal pyramid snapshots — not
+for inter-agent messaging. The same persisted bit-vector materializes
+differently depending on which agent's LUT you query — bit position 314
+means "车" to Agent A and "元" to Agent B. This is the statistics constraint
+(§5.5): structure is transferable (shared storage), interpretation is not
+(per-agent LUT). For a million agents, a single IPFS store eliminates
+massive redundancy while each agent maintains only its own compact LUT.
+
+### Why This Works Without Infrastructure
+
+The same IICA properties that make a single pass deterministic make the
+entire network coordination-free:
+
+| IICA property | Fire-and-forget consequence |
+| --------------- | ---------------------------- |
+| Idempotent | Duplicate message → same HLLSet → union is no-op |
+| Immutable | No version conflicts — HLLSets never change |
+| Content-Addressed | Messages self-identify via SHA-1 key — no message IDs needed |
+| Union is CRDT | Merge at confluence nodes without consensus |
+| Commutative | A ∪ B = B ∪ A — arrival order doesn't matter |
+| Associative | (A ∪ B) ∪ C = A ∪ (B ∪ C) — any merge topology works |
+
+**The algebra IS the protocol.** Union IS merge. Content-addressing IS
+routing. IICA IS consistency. No message broker, no consensus protocol,
+no workflow engine, no retry logic. The only requirement is that messages
+eventually arrive. The lattice converges regardless of path.
+
+### Cycles Are Resolved by Time
+
+The graph is directed but need not be acyclic. A loop a → ... → a is a
+**recurrent connection** — the same agent receives its own output as a
+future input, separated by time:
+
+```text
+outₐ(t) → ... → inₐ(t + k)
+
+where k = loop latency (number of ingestion steps around the cycle)
+```
+
+Each pass through the cycle produces a *new observation at a later moment*.
+The ingestion step (perceptron) creates the temporal separation. The
+evolution equation (§4.1) already captures this:
+`H(t) = H(S(t), H(t-1), D(t-1), R(t-1), N(t))`.
+
+The temporal pyramid (§4.2) provides the mechanism: loopback output enters
+at L0, percolates upward through L1→L6, and feeds back as context in
+subsequent waves. The same HLLSet never re-enters the same agent at the
+same time — time differentiates what would otherwise be a logical
+contradiction. This is how recurrent neural networks work, and it's how
+the HLLSet lattice works — the architecture was already recurrent;
+the graph just makes it explicit.
+
+### Immersion Learning: Agents Learn Language by Listening
+
+All `[UM]` agents share the same **encoded vocabulary language** — the
+encoding IDs that flow on graph edges. This has a remarkable consequence:
+a new agent dropped into the network learns to "speak" simply by receiving
+encodings, exactly like a baby learning language by immersion among
+speaking people.
+
+**The mechanism:**
+
+1. **Cold start.** New agent joins the network with empty LUTs (cold start
+   per STANDARD.md Appendix D). It cannot yet produce meaningful output.
+2. **Listening.** The agent receives encoding streams from upstream agents.
+   Each encoding is recorded into its LUTs: `lut.record(encoding)`.
+   TF accumulates monotonically.
+3. **Emergence.** After enough messages (~50-100), the LUT has sufficient
+   TF distribution to disambiguate. The agent begins to materialize
+   coherent encodings.
+4. **Fluency.** As ingestion continues, the agent's LUT TF distribution
+   converges to match the network's encoding distribution. It now speaks
+   the same language as every other agent.
+
+**No explicit training. No labeled data. No gradient descent.** The agent
+learns by listening. The network IS the training corpus. This is the
+lattice-covered initialization path from STANDARD.md Appendix D, but
+generalized: the "existing HLLSet corpus" is the live encoding stream
+from the network itself.
+
+**Why the shared vocabulary emerges.** All agents use the same encoding
+format (encoding IDs). Agent A's output `tid18308` means the same thing
+to Agent B as it does to Agent C. The vocabulary is universal within the
+[UM]-net — what differs is each agent's domain-specific TF distribution
+and gate filter. A new agent starts with no gate bias and no TF, so it
+absorbs the network's distribution passively, like a child acquiring
+language through exposure.
+
+This is fundamentally different from how neural networks learn:
+- NN: requires labeled data, loss function, backpropagation, GPU clusters
+- [UM]-net: requires being connected to the graph and receiving messages
+
+The same mechanism that makes the DAG coordination-free also makes it
+self-educating. Every message is a teaching signal.
+
+### Ashby's Law: Hash Diversity as Requisite Variety
+
+The immersion learning mechanism has a deeper mathematical foundation.
+Each `[UM]` agent encodes the same incoming encoding stream through its
+**own hash function** — same encoding `tid18308` lands at different bit
+positions in different agents.
+
+```text
+Agent A: "tid18308" → murmurhash3 → (reg=314, tz=5)  → LUT_A[314][5]
+Agent B: "tid18308" → murmurhash3 → (reg=891, tz=2)  → LUT_B[891][2]
+
+Same encoding, different bit position per agent.
+```
+
+This diversity is not a bug — it's the **convolution that satisfies
+Ashby's Law of Requisite Variety.** Ashby's Law states that a control
+system must have at least as much internal variety as the environment
+it regulates. The hash function diversity (from different domain
+vocabularies, different gate filters, and potentially different hash
+seeds) creates a **reshuffling** of the encoding stream across agents.
+Each agent builds a structurally different but semantically equivalent
+representation of the same encoding language.
+
+| Source of diversity | Mechanism | Effect |
+|--------------------|-----------|--------|
+| Domain vocabulary | Different training corpora → different LUT populations | I Ching agent vs Driving agent see different subsets |
+| Gate filter | Different TFvec/G1 → different bit-level aperture | Narrow vs wide gate: same encoding, different survival |
+| Hash seed (optional) | Different murmurhash3 seed per agent | Same encoding → different bit position, maximal diversity |
+| LUT TF accumulation | Different ingestion history → different TF distributions | Agent that heard more "元" weights it higher |
+
+The network's total variety is the union of all agents' LUT
+representations. No single agent needs to capture everything — the
+DAG topology distributes variety across agents, and confluence nodes
+recombine it via CRDT union. This is how `[UM]`-nets satisfy Ashby's
+Law without central coordination: **variety emerges from the
+convolution of independent hash mappings across the graph.**
+
+### Generalization Arc
+
+```text
+Notebook 02: [UM]            — the unified model (3-LUT, gate, De Bruijn)
+Notebook 03: [UM] → [UM]     — linear chain, IICA composition theorem
+Notebook 04: [UM]-net        — directed graph agent network, fire-and-forget, CRDT merge
+```
+
+Each step generalizes the previous using **only** what the IICA algebra
+provides. No new code. No new protocols. Just composition.
+
+### What This Makes Obsolete
+
+- **ROS 2 integration** — replaced by graph edges (encodings flow directly between agents)
+- **hllset-mesh broadcast bus** — replaced by wave execution + CRDT merge at confluence
+- **Swarm PSO dynamics** — replaced by rank-based routing through the DAG (agents
+  naturally specialize via their gates; relevance emerges from BSS, not particle velocity)
+
+All three can be removed from the architecture. The DAG-net is simpler,
+algebra-native, and requires zero external infrastructure.
+
+### Formal Specification
+
+See **STANDARD.md Part IX: [UM]-Net**. Complete formal specification
+including agent lifecycle, DAG execution semantics, CRDT merge theorems,
+and relationship to self-ingestion (§6.1).
+
+### Relationship to Self-Ingestion
+
+The DAG-net directly enables STANDARD.md §6.1 (Self-Ingestion). Each crate
+in the codebase becomes a `[UM]` agent. Git commits flow through the graph:
+
+```text
+git commit → [tokenizer] → [ranks] → [temporal] → [bridge] → llms.txt update
+                  │                       │
+                  └──→ [storage] ←────────┘
+```
+
+The codebase observes itself through its own algebra. Every commit produces
+content-addressed HLLSets. The graph processes them. The output feeds back as
+`llms.txt` annotations (l: prefix) and folder views (v: prefix).
+
+---
+
 ## 21. Acknowledgment
 
 This architecture emerged through dialogue between Alex Mylnikov, Deependra Kumar and DeepSeek
@@ -2430,8 +2660,13 @@ learning, temporal lattice layers, fire-and-forget communication, system
 lifecycle via reproduction) were collaborative insights that neither participant
 possessed at the start. The dialogue itself was the design process.
 
+The DAG Agent Network (§23) was discovered on August 4, 2026 through a separate
+collaborative session that produced three validation notebooks. The generalization
+from linear chain to directed graph to agent network emerged step by step — each step
+revealing that the next was already implicit in the algebra.
+
 ## References
 
 1. [MDBS_DDL_](https://bitsavers.trailing-edge.com/pdf/microDatabaseSystems/MDBS_DDL_Manual_Dec1985.pdf)
 2. [Real-Time Systems Design and Analysis](https://staff.emu.edu.tr/alexanderchefranov/Documents/CMSE443/CMSE443%20Spring2020/Laplante2012%20Real-Time%20Systems%20Design%20and%20Analysis.pdf)
-2. [Книга Перемен (I Ching)](https://abhidharma.ru/A/Raznoe/Kitai/0004.pdf)
+3. [Книга Перемен (I Ching)](https://abhidharma.ru/A/Raznoe/Kitai/0004.pdf)
