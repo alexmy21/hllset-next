@@ -72,8 +72,7 @@ references this standard exclusively.
 ### 1.1 The Three Properties
 
 `[IMPL]` Every operation that connects HLLSet Algebra components must satisfy three
-properties simultaneously. This is the **gate definition** — any morphism that
-violates IICA is not a valid connection.
+properties simultaneously. This is the **gate definition** — any morphism that violates IICA is not a valid connection.
 
 | Property | Definition | Consequence |
 | ---------- | ----------- | ------------- |
@@ -106,8 +105,7 @@ h_n ∘ h_{n-1} ∘ h_{n-2} ∘ ... ∘ h_1
 If each h_i satisfies IICA, then the composition satisfies IICA.
 ```
 
-This is the theorem that makes nested spaces work. You don't need a new theory
-for each level of nesting. You just need a composition of IICA-compliant hash
+This is the theorem that makes nested and connected spaces work. You don't need a new theory for each level of nesting. You just need a composition of IICA-compliant hash
 functions.
 
 ### 1.4 The IICA Pipeline
@@ -703,86 +701,109 @@ where:
 
 D, R, N are themselves HLLSets. The evolution record IS an HLLSet.
 
-### 4.2 The Temporal Pyramid (L0–L6)
+### 4.2 The Temporal Pyramid (L0–L6) — Commit-Event Model
 
 `[IMPL]` **Code status:** Implemented in `hllset-temporal` crate. Configurable
 N-layer pyramid with automatic carry cascade, system state union, per-layer TF
-snapshots, and Noether invariant verification. Presets: standard (7-layer),
-high-frequency, realtime-control, document-analysis, minimal.
+snapshots, and Noether invariant verification.
 
-#### The Default Pyramid
+The temporal pyramid is part of the **shared IPFS storage layer**, not
+individual [UM] agents. Its layers advance by **HLLSet commit events**,
+not by wall-clock seconds.
+
+#### Events Are Commits
 
 ```text
-Layer 6  YEAR     L6 = ∪ S(t) over 365 days          ← coarsest
-Layer 5  MONTH    L5 = ∪ S(t) over 30 days
-Layer 4  WEEK     L4 = ∪ S(t) over 7 days
-Layer 3  DAY      L3 = ∪ S(t) over 24 hours
-Layer 2  HOUR     L2 = ∪ S(t) over 60 minutes
-Layer 1  MINUTE   L1 = ∪ S(t) over 60 seconds
-Layer 0  SECOND   L0 = ∪ S(t) over current second    ← finest
+Layer 6  ~31.5M commits    L6 = ∪ S(t) over ~31.5M commits      ← coarsest
+Layer 5  ~2.6M commits     L5 = ∪ S(t) over ~2.6M commits
+Layer 4  ~604K commits     L4 = ∪ S(t) over ~604K commits
+Layer 3  86,400 commits    L3 = ∪ S(t) over 86,400 commits
+Layer 2  3,600 commits     L2 = ∪ S(t) over 3,600 commits
+Layer 1  60 commits        L1 = ∪ S(t) over 60 commits
+Layer 0  1 commit          L0 = current commit block             ← finest
 
-Total coverage: 7 layers → ~1 year of compressed history
+Total coverage: 7 layers → ~31.5M commits of compressed history
 ```
+
+A "second" = 1 commit. A "minute" = 60 commits. An "hour" = 3,600 commits.
+Physical time is irrelevant — what matters is the sequence of observations
+committed to the lattice.
+
+**IPFS commit queue.** [UM] agents commit HLLSets asynchronously to the
+shared storage. The storage layer maintains a commit queue that buffers
+incoming HLLSets, assigns monotonically increasing commit numbers, and
+triggers layer-boundary carries when the commit count reaches each
+threshold.
+
+#### Each Layer Is an Aggregate HLLSet
+
+Every layer Lᵢ is a single content-addressed HLLSet — the union of all
+individual HLLSets in its commit window:
+
+```text
+Lᵢ = ⋃{HLLSetⱼ | commitⱼ ∈ window(Lᵢ)}
+```
+
+This aggregate is stored in IPFS at its SHA-1 key. It can be queried
+directly: BSS(scene, L₃) measures structural similarity to "today's"
+accumulated observations.
 
 #### Automatic Building (Union Aggregation)
 
-The pyramid builds itself mechanically:
-
 ```text
-Every second boundary:
-  L1 = L1 ∪ L0          // previous second absorbed into minute
-  L0 = ∅               // reset for next second
+Every 60-commit boundary:
+  L₁ = L₁ ∪ L₀          // previous commit block absorbed
+  L₀ = ∅                // reset for next block
 
-Every minute boundary:
-  L2 = L2 ∪ L1          // previous minute absorbed into hour
-  L1 = ∅
+Every 3,600-commit boundary:
+  L₂ = L₂ ∪ L₁          // previous 60-block absorbed
+  L₁ = ∅
 
-...and so on up to L6 (year)
+...and so on up to L₆
 ```
 
-After compression, layers are **mutually exclusive** — no time slice appears
-in more than one layer. The complete system state is their union:
+After compression, layers are mutually exclusive. The complete system state:
 
 ```text
-H_system(t) = L0 ∪ L1 ∪ L2 ∪ L3 ∪ L4 ∪ L5 ∪ L6
+H_system = L₀ ∪ L₁ ∪ L₂ ∪ L₃ ∪ L₄ ∪ L₅ ∪ L₆
 ```
 
-The union is **bit-lossless** — every bit from every S(t) survives. What is lost
-is **temporal differentiation**: you cannot recover which second within a minute
-a bit came from. Every original S(t) HLLSet remains stored in IPFS at its own CID.
+The union is **bit-lossless** — every bit from every commit survives.
+Every original commit HLLSet remains stored in IPFS at its own CID.
 
-#### Compression Ratios
+#### Split Architecture: IPFS + [UM]
+
+| Concern | Where | What |
+| --------- | ------- | ------ |
+| HLLSet storage + aggregates | IPFS | Committed HLLSets, layer aggregates L₀–L₆, commit queue, carry cascade |
+| Per-commit TF-Vec snapshots | [UM] agent | TF-Vec at moment of each commit, enabling O(1) reconstruction |
+
+**O(1) reconstruction.** Each [UM] agent snapshots its accumulated TF-Vec at
+every commit it submits. To reconstruct any HLLSet from IPFS, the agent
+projects the HLLSet bit-vector onto the TF-Vec of the relevant commit:
 
 ```text
-  L0 → L1:  60:1    (seconds → minute)
-  L1 → L2:  60:1    (minutes → hour)
-  L2 → L3:  24:1    (hours → day)
-  L3 → L4:   7:1    (days → week)
-  L4 → L5:  ~4:1    (weeks → month)
-  L5 → L6:  12:1    (months → year)
-
-  Total pyramid: 60×60×24×7×4×12 ≈ 14.5 million seconds compressed into 1 HLLSet
+reconstruct(H, commit_k) = H ⊙ TF-Vec_k
+  where ⊙ masks: bitᵢ=1 → TF-Vec_k[i], bitᵢ=0 → 0
 ```
+
+A single masking operation across 1,024 registers — O(1). The same HLLSet
+projected through different TF-Vec snapshots reveals what was salient in different [UM]-Net nodes at different commit-history positions. This is the **time lens** (§4.11).
 
 #### Configurable Pyramid
 
-The 7-layer second→year pyramid is **one instance** of a general sliding window.
-The pyramid shape is a tunable parameter: number of layers N and their durations
-[d₀, d₁, ..., d_{N-1}].
+Number of layers N and commit-count durations [d₀, ..., d_{N-1}] are tunable.
 
-| Application | N | [d₀..d_{N-1}] | Total span | Character |
-| ------------ | --- | --------------- | ------------ | ----------- |
-| High-frequency trading | 5 | 100ms each | 500ms | Micro-burst detection |
-| Real-time control | 4 | 250ms each | 1s | Fast reflex, no deep history |
-| Conversational agent | 10 | 6s each | 1min | Sentence-to-sentence coherence |
-| Document analysis | 6 | 10min each | 1hr | Section-level context |
-| Original (default) | 7 | [1s, 1min, 1hr, 1d, 1w, 1mo, 1yr] | 1yr | Long-term memory |
+| Application | N | Commits per layer | Character |
+| ------------- | --- | ------------------- | ----------- |
+| High-frequency | 5 | [1, 10, 100, 1K, 10K] | Micro-burst detection |
+| Real-time control | 4 | [1, 5, 25, 125] | Fast reflex |
+| Conversational | 10 | [1, 3, 9, 27, ..., 19683] | Sentence coherence |
+| Document analysis | 6 | [10, 100, 1K, 10K, 100K, 1M] | Section context |
+| Original (default) | 7 | [1, 60, 3600, 86400, 604800, 2.6M, 31.5M] | Long-term memory |
 
-Nothing else in the architecture changes — Noether, Fisher, rank algebra all
-operate identically.
-
-**Design principle.** The pyramid is not a calendar. It is a configurable sliding
-window whose depth and granularity are chosen per application.
+**Design principle.** The pyramid is not a calendar — it is a configurable
+sliding window over commit-event counts. Physical time is irrelevant.
 
 #### The Noether Invariant
 
@@ -1614,9 +1635,9 @@ The mandate has five requirements:
 ### 8.5 Recommended caal-llm Architecture
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│                        caal-pipeline                             │
-│              (orchestration, not logic)                          │
+┌─────────────────────────────────────────────────────────────────┐
+│                        caal-pipeline                            │
+│              (orchestration, not logic)                         │
 └────────┬─────────────────────────────────────────┬──────────────┘
          │                                         │
          ▼                                         ▼
@@ -2072,6 +2093,26 @@ at a different moment. The evolution equation (§4.1) already captures this:
 **Sources** = agents with no incoming edges — entry points for `[E]` environments.
 **Sinks** = agents with no outgoing edges — exit points feeding back to `[E]`.
 
+**Fire threshold θ_fire.** Each agent has a parameter controlling how many
+upstream nodes must have fired before it processes:
+
+```text
+θ_fire ∈ [1, in-degree(a)]
+
+θ_fire = 1          → fire on first message (lowest latency)
+θ_fire = in-degree  → wait for all upstream (most complete merge)
+θ_fire = ⌈3N/4⌉     → wait for 75% (balanced)
+```
+
+This is the natural backpressure mechanism. No new infrastructure needed —
+the CRDT merge works identically regardless of when it happens. The
+threshold only controls *when* the agent fires, not *what* it computes.
+
+**Latency management:**
+
+- **Too high** → add parallel [UM] agents or parallel IPFS nodes to increase throughput
+- **Too low** → raise θ_fire on affected agents to batch more inputs before processing
+
 ```text
 G = (A, E) where A = {a₁, a₂, ..., aₙ}, E ⊆ A × A
 
@@ -2259,8 +2300,55 @@ variety (union of all LUT representations) exceeds any single agent's
 variety. The DAG distributes variety; confluence recombines it via CRDT
 union. No central coordination needed — variety emerges from independent
 hash mappings across the graph.
-network itself. The same mechanism that makes the graph coordination-free
-also makes it self-educating. Every message is a teaching signal.
+
+### 9.11 Cycles as Short-Term Memory
+
+`[SPEC]` The [UM]-net topology is **environment-dependent** — not prescribed
+by the architecture. What IS universal is the use of directed cycles within
+the graph to model short-term memory local to individual agents.
+
+```text
+[UM_A] ──→ [UM_B] ──→ [UM_C]
+   ↑                     │
+   └─────────────────────┘
+   3-step cycle: 3-step-back memory
+
+[UM_A] ──→ [UM_X] ──→ [UM_A]
+   1-step cycle: immediate-next memory
+```
+
+**Cycle path length = memory depth.** Different cycle lengths model different
+depths of short-term recall:
+
+| Cycle length | Memory depth | What it captures |
+| ------------- | ------------- | ----------------- |
+| 1-step | Immediate next | `out(t)` feeds back as context for `in(t+1)` |
+| 2-step | One step back | `out(t)` returns as `in(t+2)`, carrying intermediate agent's processing |
+| n-step | n steps back | `out(t)` returns as `in(t+n)`, enriched by n intermediate transformations |
+
+**Cycles use temporal separation** (§9.2): `outₐ(t)` re-enters as `inₐ(t+k)`
+where k is the cycle path length. Each pass through the cycle produces a new
+observation at a later commit count — never the same HLLSet at the same time.
+
+**Ephemeral, but preserved.** The short-term memory within cycles is transient
+(agents don't persist cycle state). But because every agent commits its output
+HLLSets to the temporal pyramid (§4.2), the memory trace is implicitly
+preserved: the commit history records every output that ever traversed a cycle.
+The time lens can recover it: `reconstruct(Lₖ, TF-Vec_{commitₙ})`.
+
+**Example: conversational agent.**
+
+```text
+[E: user] → [tokenize] → [understand] → [respond] → [E: user]
+                             ↑              │
+                             └── 2-step ────┘
+```
+
+The 2-step cycle carries the previous utterance's processed representation
+back as context for the current utterance. The 1-step cycle (understand →
+respond) provides immediate coherence. This is how transformer attention
+heads work — and the cycle mechanism achieves the same effect without
+matrices, just directed edges and temporal separation.
 
 ---
 

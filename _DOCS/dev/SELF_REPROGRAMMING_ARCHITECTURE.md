@@ -2607,6 +2607,31 @@ recombine it via CRDT union. This is how `[UM]`-nets satisfy Ashby's
 Law without central coordination: **variety emerges from the
 convolution of independent hash mappings across the graph.**
 
+### Separation of Concerns
+
+The architecture clarifies into three distinct layers:
+
+| Layer | Responsibility | Key mechanism |
+| ------- | --------------- | -------------- |
+| **[E] perceptrons** | Environment interfaces | Produce/consume encoding streams |
+| **[UM] agents** | Internal bit-level processing | 3-LUT, gate, cross-validate, De Bruijn. Maintain per-commit TF-Vec for O(1) reconstruction |
+| **IPFS storage** | Shared HLLSet persistence | Temporal pyramid (commit-event model), commit queue, layer aggregates |
+
+**Temporal pyramid is IPFS, not [UM].** Events are HLLSet commits, not
+wall-clock seconds. A "second" = 1 commit, "minute" = 60 commits, etc.
+IPFS queues incoming commits, builds layer aggregates via union, and
+triggers carry cascades. Each layer Lᵢ is a single content-addressed HLLSet.
+
+**Per-commit TF-Vec enables O(1) reconstruction.** Any HLLSet from IPFS
+can be projected onto the TF-Vec snapshot at a given commit: a single
+masking operation across 1,024 registers. The time lens is `H ⊙ TF-Vec_k`.
+
+**Topology is environment-dependent.** The architecture does not prescribe
+[UM]-net topology — different environments need different graphs. What IS
+universal is using cycles as short-term memory: path length = memory depth.
+1-step = immediate, 2-step = one back, n-step = n back. Ephemeral in the
+agent, implicitly preserved in the temporal pyramid via commit history.
+
 ### Generalization Arc
 
 ```text
