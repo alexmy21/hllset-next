@@ -351,6 +351,21 @@ Each permutation $\pi_j$ produces a different ``view'' of the same token stream.
 union of these views creates a richer measurement---multiple bit positions per original
 token, finer discrimination, and better materialization fidelity.
 
+\begin{remark}[Omar Khayyam's Bootstrap]
+This principle---precision through multiplication of primitive measurements---has a
+striking historical precedent.  In 1079, Omar Khayyam reformed the Persian solar
+calendar (the Jalali calendar) using only an astrolabe and basic naked-eye
+observations---instruments orders of magnitude cruder than those available to
+19th-century European astronomers.  Yet his calendar achieved an error of one day in
+approximately 5,000 years, surpassing the Gregorian calendar's one day in 3,330
+years.  The secret was not instrument quality but \textbf{measurement
+multiplication}: Khayyam accumulated observations across many nights over many years,
+and the statistical convergence of many primitive views produced precision that no
+single observation could achieve.  Bootstrap permutation is the same idea in the
+measurement-theoretic domain: the family of n-gram views replaces the family of
+nightly observations, and the HLLSet union replaces the calendar average.
+\end{remark}
+
 \subsection{n-Grams as Bootstrap}
 
 In the current HLLSet implementation, \textbf{n-grams} are the concrete bootstrap
