@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1786042479.12625 "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" "main.pdf" "main" 1786042480.01695 0
-  "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" 1786042478.89412 45162 6b757b1715b8c97e8d6e646f72aa617e ""
+["pdflatex"] 1786049331.56094 "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" "main.pdf" "main" 1786049332.48584 0
+  "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" 1786049331.32268 48856 2effc6490acad31b756ce3fece82e636 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc" 1136849721 2971 def0b6c1f0b107b3b936def894055589 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -128,9 +128,9 @@
   "/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1752807475 5523661 c4134bfcd954d4921624b40c79847918 ""
   "/usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt" 1752807524 3605127 8c66a902bcbc4c3a92ef7ade516d3868 ""
   "/usr/local/texlive/2025/texmf.cnf" 1752807468.27911 455 5b996dcaa0eb4ef14a83b026bc0a008c ""
-  "main.aux" 1786042479.88912 6964 58015d25ab66ba0b8b40345511e0889b "pdflatex"
-  "main.out" 1786042479.89012 8507 2c5a9858ef9b8b7e091679b443e37dcb "pdflatex"
-  "main.tex" 1786042478.89412 45162 6b757b1715b8c97e8d6e646f72aa617e ""
+  "main.aux" 1786049332.34968 7425 6279803757ccb34cbac14e57034e8f46 "pdflatex"
+  "main.out" 1786049332.35068 9272 6562f6307d6f814e9d37a9eace9c2c13 "pdflatex"
+  "main.tex" 1786049331.32268 48856 2effc6490acad31b756ce3fece82e636 ""
   (generated)
   "main.aux"
   "main.log"
