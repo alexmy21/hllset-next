@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1786049331.56094 "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" "main.pdf" "main" 1786049332.48584 0
-  "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" 1786049331.32268 48856 2effc6490acad31b756ce3fece82e636 ""
+["pdflatex"] 1786289124.8438 "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" "main.pdf" "main" 1786289125.96087 0
+  "/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/_DOCS/ewm/main.tex" 1786289123.06075 115853 75240d3f0f004fffb3f5fe78d40ef0ad ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc" 1136849721 2971 def0b6c1f0b107b3b936def894055589 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -45,6 +45,7 @@
   "/usr/local/texlive/2025/texmf-dist/fonts/tfm/public/cm/cmsy8.tfm" 1136768653 1120 8b7d695260f3cff42e636090a8002094 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb" 1248133631 30251 6afa5cb1d0204815a708a080681d4674 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb" 1248133631 36299 5f9df58c2139e7edcf37c8fca4bd384d ""
+  "/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi6.pfb" 1248133631 37166 8ab3487cbe3ab49ebce74c29ea2418db ""
   "/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb" 1248133631 35469 70d41d2b9ea31d5d813066df7c99281c ""
   "/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb" 1248133631 35752 024fb6c41858982481f6968b5fc26508 ""
   "/usr/local/texlive/2025/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb" 1248133631 32734 69e00a6b65cedb993666e42eedb3d48f ""
@@ -128,9 +129,9 @@
   "/usr/local/texlive/2025/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1752807475 5523661 c4134bfcd954d4921624b40c79847918 ""
   "/usr/local/texlive/2025/texmf-var/web2c/pdftex/pdflatex.fmt" 1752807524 3605127 8c66a902bcbc4c3a92ef7ade516d3868 ""
   "/usr/local/texlive/2025/texmf.cnf" 1752807468.27911 455 5b996dcaa0eb4ef14a83b026bc0a008c ""
-  "main.aux" 1786049332.34968 7425 6279803757ccb34cbac14e57034e8f46 "pdflatex"
-  "main.out" 1786049332.35068 9272 6562f6307d6f814e9d37a9eace9c2c13 "pdflatex"
-  "main.tex" 1786049331.32268 48856 2effc6490acad31b756ce3fece82e636 ""
+  "main.aux" 1786289125.81775 13871 2cf2a02536a7293cccc5ef2f5cbecd86 "pdflatex"
+  "main.out" 1786289125.81875 18295 d5dcede91603fa59401774ffcaba5f04 "pdflatex"
+  "main.tex" 1786289123.06075 115853 75240d3f0f004fffb3f5fe78d40ef0ad ""
   (generated)
   "main.aux"
   "main.log"
