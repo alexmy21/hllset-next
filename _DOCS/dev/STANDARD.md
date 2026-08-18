@@ -1,8 +1,8 @@
 # HLLSet Development Standard
 
 > **Status:** Authoritative — supersedes all per-topic dev docs listed in §0.2
-> **Date:** July 31, 2026 (updated: Phase 1-3 implementation complete)
-> **Scope:** hllset-next (core library) + caal-llm (reference application)
+> **Date:** July 31, 2026 (updated: Part X — EWM↔LLM exchange protocol)
+> **Scope:** hllset-next (core library) + caal-llm (reference application) + EWM-nanoLM (LLM grounding application)
 >
 > This document consolidates all development documents into a single, internally
 > consistent standard. It resolves contradictions, aligns with the current code
@@ -27,6 +27,7 @@ The standard is organized in **conceptual layers**, each building on the previou
 | VII | Status Matrix | What is actually implemented in code? |
 | VIII | caal-llm Guide | How to build a reference application on this foundation? |
 | IX | [UM]-Net | How do agents form self-organizing directed graphs without coordination? |
+| X | EWM ↔ LLM Exchange | What is the boundary/protocol between an EWM world model and an LLM? |
 
 Every concept carries a **status marker**:
 
@@ -64,6 +65,7 @@ references this standard exclusively.
 | --------- | ------ | --------------------------- |
 | **hllset-next** (`/home/alexmy/SGS/SGS_lib/fractal_manifold/hllset-next/`) | Core library — defines the algebra, storage protocol, and rank framework | **Definitive.** The standard is written *from* this project. Refactoring is possible as an exception; new code must comply. |
 | **caal-llm** (`/home/alexmy/SGS/SGS_lib/caal-llm/`) | Reference application — demonstrates CAAL (Chinese as Assembly Language) LLM on hllset-next | **Prescriptive.** Part VIII defines the redesigned architecture. caal-llm must conform to this standard. |
+| **EWM-nanoLM** (`/home/alexmy/SGS/SGS_lib/fractal_manifold/EWM-nanoLM/`) | Reference application — a specialized, EWM-grounded LLM (the bridge is the `ContextMatrix`) | **Prescriptive.** Part X defines the EWM↔LLM exchange protocol. EWM-nanoLM must conform. |
 
 ---
 
@@ -1563,6 +1565,30 @@ From the review, plus new additions:
 - `hllset-temporal`: configurable N-layer pyramid with carry cascade
 - `hllset-bridge`: two-pass re-representation + Spearman rank correlation
 
+### 7.12 EWM ↔ LLM Exchange (Part X)
+
+Implemented in two projects:
+
+- **EWM-nanoLM** — the general GPT-2 protocol POC (consumes hllset-next),
+- **hllset-cortex** (`/home/alexmy/SGS/DeepSeek-OCR/hllset_cortex/`) — the
+  DeepSeek-OCR substrate and the wider-vision reference.
+
+| Concept | Status | Location | Notes |
+| --------- | -------- | ---------- | ------- |
+| Encoding-only boundary (`tid{n}`) | `[IMPL]` | EWM-nanoLM `nanolm-context`; hllset-cortex `domain.py` | §10.3 — token = `tid{n}` bytes; two spaces / two morphisms (§10.1) |
+| Bootstrapping + Globals G1/G2/G3 | `[IMPL]` | EWM-nanoLM `nanolm-context/src/globals.rs` | §10.4 — seed 0/1/2 = 1/2/3-gram |
+| Embed-HLLSet (`args(wte @ v)`) | `[IMPL]` | EWM-nanoLM `nanolm-llm` (`nearest`) + `nanolm-context` (`Lattice`) | §10.5 — read-only LLM reduction |
+| Document = union of embed-HLLSets | `[IMPL]` | EWM-nanoLM notebook `embed_hllset.ipynb`; hllset-cortex `search.py` (page atoms + `v:` view) | §10.6 — union covers the doc |
+| Token hallucination (LUT diagnosis) | `[IMPL]` | EWM-nanoLM `nanolm-context/src/gate.rs`; hllset-cortex `grounding.py` (`exact_known`) | §10.7 — exact-LUT, one-sided; the LUT diagnoses, never hallucinates |
+| Structural hallucination (BSS ρ) | `[IMPL]` | hllset-cortex `grounding.py` (`structural_rho`) | §10.7 — BSS ρ flags departure from `S(t)` |
+| Expert = vocab gate (`ExpertGate`) | `[IMPL]` | EWM-nanoLM `nanolm-context/src/experts.rs` | §5.1 / §10.9 — exact-LUT membership; union = monotonic CRDT |
+| Grounding recommendation (`recommend`) | `[IMPL]` | EWM-nanoLM `nanolm-context/src/grounding.rs` | §10.7 — τ/ρ + flagged; read-only, never mutates the model |
+| Checkpoint (sha1) + logit mixture | `[IMPL]` | EWM-nanoLM `nanolm-llm` (`checkpoint_address`, `mix_logits`) | §10.9 — content-address + logit-space stacking (§5.2) |
+| DRN R-link into the lattice | `[IMPL]` | hllset-cortex `temporal.py` (`drn`, `TemporalPyramid`) | §10.8 — real lattice ops, content-addressed R-link |
+| Page-level search + localization | `[IMPL]` | hllset-cortex `search.py` (`search`) | §4.4 — page atoms ranked by BSS τ |
+| Precedents (history retrieval) | `[IMPL]` | hllset-cortex `lattice.py` (`precedents`) | §10.8 — R-link feedback gate over history |
+| Encoder bypass (voc-Gate boundary) | `[IMPL]` | hllset-cortex `grounding.py` | §10.9 — exact-LUT gate lets encoding IDs come from any source |
+
 ---
 
 ## Part VIII: caal-llm Redesign Guide
@@ -2352,6 +2378,183 @@ matrices, just directed edges and temporal separation.
 
 ---
 
+## Part X: The EWM ↔ LLM Exchange Protocol
+
+`[SPEC]` — normative for the EWM-nanoLM reference application
+(`/home/alexmy/SGS/SGS_lib/fractal_manifold/EWM-nanoLM/`, the general GPT-2 POC)
+and for **hllset-cortex** (`/home/alexmy/SGS/DeepSeek-OCR/hllset_cortex/`, the
+DeepSeek-OCR substrate and the wider-vision reference), and for any EWM↔LLM
+integration. It introduces **no new algebra**: it is an instance of Part V
+("bridges are not special", §5.7) and of the [UM]-net encoding-flow rule (§9).
+Where it overlaps an existing section, that section remains authoritative; this
+part only fixes the *boundary* the two realms share.
+
+### 10.1 The Boundary — Encodings Only
+
+The single exchange rule: **only encoding IDs cross the boundary.** An encoding is
+the LLM's token id (an integer, e.g. a BPE id). Nothing else crosses — no HLLSet,
+no TF vector, no register, no hash, no CID, no embedding vector, no hidden state.
+
+```text
+       LLM side (parametric)                        EWM side (measurement)
+  text ──tokenize──> encodings ──tid{n}──> murmurhash3 ──<reg,zeros>──> HLLSet
+  vector ──args────> encodings ──tid{n}──> murmurhash3 ──<reg,zeros>──> HLLSet
+                    ▲                                             │
+                    └─────────── materialize ──── encodings ───────┘
+```
+
+**Two spaces, two morphisms.** Encodings (token space) and HLLSets (structural
+space) never cross directly; the only morphisms are **ingest** (encodings →
+HLLSet, hash + bootstrap) and **materialize** (HLLSet → encodings). Every
+structural operation (union, intersection, BSS, R-link, DRN, the temporal
+pyramid) is HLLSet-space; every input, response, and interchange with the LLM is
+token-space. A token never becomes a structural value except through ingest; an
+HLLSet never becomes a token except through materialize.
+
+This is the same rule as §9: encodings flow between components; HLLSets are the
+internal scratchpad. EWM has **no semantics** (it maps the World as sets of
+encodings); the LLM has **no "why"** (it consumes encodings, never EWM's bits).
+Meaning exists only at the two ends — when the LLM emits an encoding, and when a
+decoder reads a materialized encoding back into text.
+
+### 10.2 The Two Sides
+
+| Side | Role | Primitives | Mutates the other? |
+| ---- | ---- | ---------- | ------------------ |
+| LLM | **read-only, pure** reduction to encodings | `tokenize(text) → [encoding]`, `args(wte @ v) → [encoding]` | No |
+| EWM | store + materialize encodings | `ingest([encoding])`, `materialize() → [encoding]` | No |
+
+The LLM's reductions are **pure functions** (same input ⇒ same encodings) and
+side-effect free — they satisfy the IICA gate (Part I) at the boundary. EWM never
+writes to the LLM; the LLM never reads EWM's bits. The interface is therefore
+**read-only in both directions**.
+
+### 10.3 The Token Definition — `tid{n}`
+
+The token string fed to `murmurhash3` is the encoding's **bytes**: encoding `n`
+becomes `"tid{n}"`. Per §5.7, what changes across all bridge variants is only the
+**token definition**; the hash, the HLLSet, and the five operations are unchanged.
+
+```text
+encoding 40313 ──> bytes "tid40313" ──> murmurhash3 ──> <reg, zeros>
+```
+
+**Id-identity invariant** (the correctness anchor): the `n` in `tid{n}` **is** the
+row index of `wte[n]` / `lm_head[:,n]` — one integer, never re-encoded. If the two
+ever diverge, `tokens-out` slices the wrong rows; an encoding in the LLM response
+that is unknown to EWM is a hallucination (§10.7).
+
+### 10.4 Bootstrapping — n-grams + multi-seed → Globals G1/G2/G3
+
+Bootstrapping — "reasoning is bootstrap" (EWM-nanoLM `ARCHITECTURE.md` §3.5) — is the
+pair of mechanisms that reason from a sketch back to a collection. Their hashes go
+into the **same** HLLSet; the seed is the level tag:
+
+| Level | Seed | Role |
+| ----- | ---- | ---- |
+| 1-gram | 0 | the atomic token set |
+| 2-gram | 1 | order restoration (De Bruijn bigrams) |
+| 3-gram | 2 | structural fingerprinting (§5.2) |
+
+n-grams serve **continuous ordered** sequences (they restore order); multi-seed
+serves **unordered** sets (redundant positions → consensus). Both compress to the
+same `<reg,zeros>`. The **Globals G1/G2/G3** are the per-seed global unions; per
+§5.5 each universe owns its own — never transferred across a bridge. `G_k ∩ H`
+isolates H's level-k subset.
+
+### 10.5 The Embed-HLLSet — Embeddings as Sets of Encodings
+
+A dense embedding vector the LLM holds is reduced to a **set of encodings** and
+becomes a regular HLLSet:
+
+```text
+embed-HLLSet(v) = { args(wte @ v) }     // the top-k nearest encoding ids
+```
+
+`args` is the pure, read-only LLM-side function of §10.2; it returns encoding ids,
+never the vector. The embed-HLLSet is **not a special object** — it is inscribed
+with the same `tid{n}` bootstrapping and materialized with the same `encodingLUT`
+as literal tokens. EWM cannot tell them apart, and need not. (The "gate" / "expert"
+of the DeepSeek-OCR `gate_TF` mechanism is exactly an embed-HLLSet over a domain's
+encoding set.)
+
+### 10.6 Documents as Unions of Embed-HLLSets
+
+A document maps to a **collection** of token embeddings, not a single pooled
+vector — mean-pooling *raw input* embeddings is weak (the function words dominate);
+a *semantic* sentence vector needs the contextualized hidden state, which is a
+later, read-only LLM-side variant:
+
+```text
+doc = {t_1, ..., t_m} ──> { embed-HLLSet(wte[t_1]), ..., embed-HLLSet(wte[t_m]) }
+doc-HLLSet = ⋃ embed-HLLSet(wte[t_i])
+```
+
+The union **covers** the document: every token lies in its own neighborhood, so
+`{t_i} ⊆ doc-HLLSet`. Mapping embeddings to documents is what builds the lattice
+(§10.8).
+
+### 10.7 Validation — Two Diagnoses of Hallucination
+
+The response is validated against the measured state by **two diagnoses in two
+different spaces** (§10.1):
+
+1. **Token hallucination (token space, diagnosed by the LUT).** An encoding that
+   never arrived through ingestion is unknown — the LUT flags it. The LUT itself
+   never hallucinates; the HLLSet the LLM produces does. This test is the
+   **exact-LUT forward map** — a full-vocabulary HLLSet saturates (a single seed
+   leaks ~97–99% of OOV ids by collision, and 2-of-3 consensus does not fix it,
+   measured ~99.99%), so membership must live in the reverse index, not the
+   sketch (see Appendix A). One-sided: a measured encoding is never flagged.
+2. **Structural hallucination (HLLSet space, diagnosed by BSS ρ).** Even when
+   every token is known, the response may depart structurally from the context
+   `S(t)`; `ρ = |response \ S(t)| / |S(t)|` flags that departure. The R-link
+   `R = S(t) ∩ response` (weight = `popcount(R)`) is the same intersection in its
+   FPGA-native integer form; BSS τ/ρ is the CPU measurement. BSS ρ is only
+   meaningful when response and context are at the same cardinality scale — the
+   cardinality is a function of the '1'-bit distribution in the fixed 32,768-bit
+   vector (§4.4).
+
+### 10.8 The DRN Connection — R-Links into the Lattice
+
+Each embed-HLLSet joins the doc-HLLSet through the DRN decomposition (§4.3):
+
+```text
+R(t) = S(t) ∩ H(t-1)      ← the Retained component (the R-link)
+```
+
+The R-link is storable as `r:<sha1>`, content-addressed and composable — it is the
+relationship edge from an embed-HLLSet to its doc-HLLSet. This is how the document
+lattice accumulates monotonically, with no weight surgery.
+
+Beyond the shallow response-vs-context comparison (§10.7), decision-making dives
+into the **temporal-pyramid history** for **precedents**: every submitted
+observation (page or query) is kept content-addressed, and the R-link feedback
+gate (§4.4) ranks the prior observations that resemble the current one —
+`R = query ∩ entry`, weight = `popcount(R)` — surfacing the most similar as
+reference. This is the deep grounding step.
+
+### 10.9 Separation of Concerns — One EWM, Many LLMs; One LLM, Many EWMs
+
+Because only encodings cross, the two realms are interchangeable:
+
+- **One EWM, many LLMs** — each LLM reduces with its own geometry to the same
+  currency (encoding ids); one EWM ingests them all, oblivious to the source.
+- **One LLM, many EWMs** (local **expert** world models) — the LLM reduces once
+  and routes the encoding set to whichever expert's sub-lattice should hold it.
+
+Because only encodings cross and the exact-LUT gate (§10.7) filters
+out-of-vocabulary ids at materialization, **the encoder is bypassable**: encoding
+IDs may come from *any* source (another tokenizer, a simulated stream, a general
+LLM), not only the vision encoder. A wrong id may land in the LUT (the LUT is
+never gated — everything measured is stored), but it is filtered post-gate and
+never reaches the decoder.
+
+Experts therefore add no new EWM machinery; they reuse §10.5's embed-HLLSet gate
+and §10.8's R-link.
+
+---
+
 ## Appendix A: Resolved Contradictions
 
 This appendix records contradictions found across the source documents and
@@ -2365,6 +2568,7 @@ how this standard resolves them.
 | Statistics sharing in notebook 11 vs statistics constraint | Notebook cells 10-12; IICA_STATISTICS_CONSTRAINT.md | Standard: Notebook is a POC shortcut. The correct architecture enforces separate LUTs (§5.5). |
 | D_P = N_s + 2 vs N_s + 1 | DIMENSIONAL_NESTING.md §1.1 vs §1.2 | Standard: Dynamic D_P = N + 2 (including temporal scanning). Static D_P = N + 1 (presentation only). |
 | "system:tf" as 32,768 × f64 vs integer-only FPGA constraint | HLPP §3.2; Bible §17.1 | Standard: TF is stored as f64 (current wire format). Rank is integer-derived from TF. This is an acceptable bridge between storage format and computation regime. |
+| "Gate leak <1% via 2-of-3 consensus" vs measured saturation | EWM-nanoLM Phase 2 measurement (nanolm-context/src/gate.rs) | Standard: a full-vocabulary HLLSet gate saturates — single-seed leaks ~97–99% of OOV ids, 2-of-3 consensus ~99.99% (the "<1%" claim is wrong). The gate is the **exact LUT forward map** (0 leak, 0 FN); membership lives in the reverse index, not the sketch (§10.7). |
 
 ---
 
